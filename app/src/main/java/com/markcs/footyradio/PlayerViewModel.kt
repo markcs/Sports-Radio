@@ -51,7 +51,8 @@ data class PlayerUiState(
     val isError: Boolean = false,
     val isRefreshing: Boolean = false,
     val isCasting: Boolean = false,
-    val castDeviceName: String? = null
+    val castDeviceName: String? = null,
+    val enableTeamAbbreviations: Boolean = false
 )
 
 private data class RawPlaybackState(
@@ -69,6 +70,7 @@ private data class RawPlaybackState(
 class PlayerViewModel(
     application: Application,
     private val stationsRepository: StationsRepository,
+    private val teamsRepository: com.markcs.footyradio.data.TeamsRepository,
     private val artworkService: ArtworkService,
     private val squiggleService: com.markcs.footyradio.data.SquiggleService
 ) : AndroidViewModel(application) {
@@ -179,11 +181,38 @@ class PlayerViewModel(
         }
     }
 
+    private val _enableTeamAbbreviations = MutableStateFlow(teamsRepository.isTeamAbbreviationsEnabled())
+
     init {
+        uiState = uiState.copy(enableTeamAbbreviations = teamsRepository.isTeamAbbreviationsEnabled())
         observeRawState()
         loadStations()
         startSquigglePolling()
         castContext?.sessionManager?.addSessionManagerListener(sessionManagerListener, CastSession::class.java)
+    }
+
+    fun setTeamAbbreviationsEnabled(enabled: Boolean) {
+        teamsRepository.setTeamAbbreviationsEnabled(enabled)
+        _enableTeamAbbreviations.value = enabled
+        uiState = uiState.copy(enableTeamAbbreviations = enabled)
+    }
+
+    fun getTeamsUrl(): String {
+        return teamsRepository.getTeamsUrl()
+    }
+
+    fun updateTeamsUrl(url: String) {
+        teamsRepository.setTeamsUrl(url)
+        viewModelScope.launch {
+            teamsRepository.loadTeams(forceRefresh = true)
+        }
+    }
+
+    fun resetTeamsUrl() {
+        teamsRepository.resetTeamsUrl()
+        viewModelScope.launch {
+            teamsRepository.loadTeams(forceRefresh = true)
+        }
     }
 
     // --- Public API ---
@@ -393,7 +422,10 @@ class PlayerViewModel(
     private fun startSquigglePolling() {
         if (squiggleJob?.isActive == true) return
         squiggleJob = viewModelScope.launch {
-            squiggleService.liveScore.collect { score ->
+            squiggleService.getLiveScoreFlow(
+                teamsRepository.teamsMap,
+                _enableTeamAbbreviations
+            ).collect { score ->
                 if (uiState.liveScore != score?.scoreText) {
                     uiState = uiState.copy(
                         liveScore = score?.scoreText,
@@ -604,7 +636,7 @@ class PlayerViewModel(
         viewModelScope.launch {
             uiState = uiState.copy(isRefreshing = true)
             try {
-                val loadedStations = stationsRepository.loadStations()
+                val loadedStations = stationsRepository.loadStations(forceRefresh = true)
                 uiState = uiState.copy(
                     stations = loadedStations,
                     customStations = stationsRepository.loadCustomStations(),
@@ -725,6 +757,7 @@ class PlayerViewModel(
                 return PlayerViewModel(
                     application,
                     application.stationsRepository,
+                    application.teamsRepository,
                     application.artworkService,
                     application.squiggleService
                 ) as T

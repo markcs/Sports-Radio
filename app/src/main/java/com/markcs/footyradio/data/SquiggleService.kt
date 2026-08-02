@@ -122,7 +122,7 @@ data class LiveScoreState(
 
 class SquiggleService(
     okHttpClient: OkHttpClient,
-    scope: CoroutineScope
+    private val scope: CoroutineScope
 ) {
     private val TAG = "SquiggleService"
     private val jsonConfig = Json { 
@@ -168,11 +168,29 @@ class SquiggleService(
     private val winnerReceivedTime = mutableMapOf<Int, Long>()
     private var initialFetchDone = false
 
-    val liveScore: StateFlow<LiveScoreState?> = callbackFlow {
+    fun getLiveScoreFlow(
+        teamsMapFlow: kotlinx.coroutines.flow.Flow<Map<String, String>>,
+        abbreviationsEnabledFlow: kotlinx.coroutines.flow.Flow<Boolean>
+    ): StateFlow<LiveScoreState?> = callbackFlow {
         val localSdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
         val dateSdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
-        val activeJob = scope.launch {
+        var currentTeamsMap = emptyMap<String, String>()
+        var currentEnableAbbreviations = false
+
+        launch {
+            teamsMapFlow.collect { map ->
+                currentTeamsMap = map
+            }
+        }
+
+        launch {
+            abbreviationsEnabledFlow.collect { enabled ->
+                currentEnableAbbreviations = enabled
+            }
+        }
+
+        val activeJob = this@SquiggleService.scope.launch {
             _activeScreenCount.map { it > 0 }.distinctUntilChanged().collectLatest { active ->
                 if (!active) {
                     trySend(null)
@@ -220,7 +238,7 @@ class SquiggleService(
                     
                     if (activeGames.isEmpty() && timeToFirstGame > startSSEThreshold) {
                         // Update UI with static scores if any, then wait
-                        trySend(formatScores(todayGames, winnerReceivedTime))
+                        trySend(formatScores(todayGames, winnerReceivedTime, currentTeamsMap, currentEnableAbbreviations))
                         val waitTime = (timeToFirstGame - startSSEThreshold).coerceAtLeast(30_000L)
                         Log.d(TAG, "Waiting ${waitTime/1000}s for next game start")
                         delay(waitTime)
@@ -316,7 +334,7 @@ class SquiggleService(
                                     }
                                 }
 
-                                trySend(formatScores(gamesMap.values.filter { it.date?.startsWith(today) == true }, winnerReceivedTime))
+                                trySend(formatScores(gamesMap.values.filter { it.date?.startsWith(today) == true }, winnerReceivedTime, currentTeamsMap, currentEnableAbbreviations))
                                 if (disconnectNeeded) this@sse.cancel()
                             }
                         }
@@ -329,7 +347,7 @@ class SquiggleService(
         }
         awaitClose { activeJob.cancel() }
     }.stateIn(
-        scope = scope,
+        scope = this@SquiggleService.scope,
         started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
         initialValue = null
     )
@@ -345,7 +363,12 @@ class SquiggleService(
         }
     }
 
-    fun formatScores(games: List<SquiggleGame>, winnerTimes: Map<Int, Long>): LiveScoreState? {
+    fun formatScores(
+        games: List<SquiggleGame>,
+        winnerTimes: Map<Int, Long>,
+        teamsMap: Map<String, String> = emptyMap(),
+        enableAbbreviations: Boolean = false
+    ): LiveScoreState? {
         val now = System.currentTimeMillis()
         val toShow = games.filter { g ->
             val complete = g.complete ?: 0
@@ -358,10 +381,17 @@ class SquiggleService(
 
         if (toShow.isEmpty()) return null
 
+        fun getDisplayName(name: String): String {
+            if (!enableAbbreviations) return name
+            return teamsMap[name.lowercase()] ?: name
+        }
+
         val sorted = toShow.sortedByDescending { it.complete ?: 0 }
         val scoreText = sorted.joinToString(" | ") { game ->
-            val hTeam = game.hteam ?: "Unknown"
-            val aTeam = game.ateam ?: "Unknown"
+            val hTeamRaw = game.hteam ?: "Unknown"
+            val aTeamRaw = game.ateam ?: "Unknown"
+            val hTeam = getDisplayName(hTeamRaw)
+            val aTeam = getDisplayName(aTeamRaw)
             val hScore = game.hscore ?: 0
             val aScore = game.ascore ?: 0
             val timeStr = game.timestr ?: ""

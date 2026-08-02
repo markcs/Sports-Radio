@@ -1,0 +1,22 @@
+{
+  "teams": [
+    { "name": "Adelaide", "shortName": "ADL" },
+    { "name": "Brisbane", "shortName": "BRIS" },
+    { "name": "Carlton", "shortName": "CAR" },
+    { "name": "Collingwood", "shortName": "COLL" },
+    { "name": "Essendon", "shortName": "ESS" },
+    { "name": "Fremantle", "shortName": "FRE" },
+    { "name": "Geelong", "shortName": "GEE" },
+    { "name": "Gold Coast", "shortName": "GCS" },
+    { "name": "Greater Western Sydney", "shortName": "GWS" },
+    { "name": "Hawthorn", "shortName": "HAW" },
+    { "name": "Melbourne", "shortName": "MEL" },
+    { "name": "North Melbourne Kangaroos", "shortName": "NM" },
+    { "name": "Port Adelaide Power", "shortName": "PORT" },
+    { "name": "Richmond Tigers", "shortName": "RICH" },
+    { "name": "St Kilda Saints", "shortName": "STK" },
+    { "name": "Sydney Swans", "shortName": "SYD" },
+    { "name": "West Coast Eagles", "shortName": "WCE" },
+    { "name": "Western Bulldogs", "shortName": "WB" }
+  ]
+}

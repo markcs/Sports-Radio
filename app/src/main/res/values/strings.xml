@@ -66,6 +66,13 @@
     <string name="about_station_url_save">Apply &amp; Reload</string>
     <string name="about_station_url_reset">Reset</string>
 
+    <!-- About Screen - Settings & Teams URL -->
+    <string name="about_section_settings">Settings</string>
+    <string name="about_enable_team_abbreviations">Enable Team Abbreviations</string>
+    <string name="about_enable_team_abbreviations_desc">Shorten team names on live score display</string>
+    <string name="about_teams_url">Custom Teams JSON URL</string>
+    <string name="about_teams_url_hint">Enter Teams JSON URL</string>
+
     <!-- About Screen - Custom Stations -->
     <string name="about_section_custom_stations">My Custom Stations</string>
     <string name="about_add_station">Add New Station</string>

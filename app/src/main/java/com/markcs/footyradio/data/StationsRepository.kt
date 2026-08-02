@@ -8,9 +8,13 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.serialization.kotlinx.json.json
-import kotlinx.serialization.json.Json
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import android.util.Log
 import java.io.File
@@ -32,6 +36,10 @@ class StationsRepository(
             json(json)
         }
     }
+
+    // Dedicated scope for fire-and-forget background network refreshes.
+    // Uses SupervisorJob so a failed refresh never cancels the scope itself.
+    private val backgroundRefreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun getStationsUrl(): String {
         return prefs.getString("custom_stations_url", Config.stationsURL) ?: Config.stationsURL
@@ -78,20 +86,62 @@ class StationsRepository(
         }
     }
 
-    suspend fun loadStations(remoteUrl: String? = null): List<RadioStation> = withContext(Dispatchers.IO) {
+    /**
+     * Load stations using a cache-first strategy:
+     * - If [forceRefresh] is false (default) and a disk cache exists, return it immediately.
+     *   A background network refresh is then kicked off to keep the cache warm for next time.
+     * - If [forceRefresh] is true (e.g. pull-to-refresh, settings change), always fetch from
+     *   the network first and fall back to cache on failure.
+     * - On first install (no cache) a network fetch is always performed, guarded by an 8-second
+     *   timeout so Android Auto never spins forever.
+     */
+    suspend fun loadStations(remoteUrl: String? = null, forceRefresh: Boolean = false): List<RadioStation> = withContext(Dispatchers.IO) {
         val targetUrl = remoteUrl ?: getStationsUrl()
-        val remoteStations = try {
-            val fetched = loadFromNetwork(targetUrl)
-            saveToCache(fetched)
-            fetched
-        } catch (e: Exception) {
-            Log.e("StationsRepository", "Failed to fetch stations from $targetUrl", e)
-            val cached = loadFromCache()
-            if (cached.isNotEmpty()) {
-                Log.d("StationsRepository", "Using cached stations instead")
-                cached
-            } else {
-                throw e
+
+        val cachedRaw = if (!forceRefresh) loadFromCache() else emptyList()
+
+        val remoteStations: List<RadioStation> = if (cachedRaw.isNotEmpty()) {
+            // Cache hit: schedule a background refresh so data stays current next time.
+            Log.d("StationsRepository", "Cache hit — returning ${cachedRaw.size} cached stations; scheduling background refresh")
+            backgroundRefreshScope.launch {
+                try {
+                    val refreshed = loadFromNetwork(targetUrl)
+                    saveToCache(refreshed)
+                    Log.d("StationsRepository", "Background refresh complete — ${refreshed.size} stations cached")
+                } catch (e: Exception) {
+                    Log.w("StationsRepository", "Background refresh failed (cached data still valid)", e)
+                }
+            }
+            cachedRaw
+        } else {
+            // No cache (first install) or forced refresh: must go to the network.
+            Log.d("StationsRepository", "No cache or forceRefresh — fetching from network")
+            try {
+                val fetched = if (!forceRefresh) {
+                    // First install: apply a timeout so Android Auto doesn't spin forever.
+                    withTimeoutOrNull(8_000L) { loadFromNetwork(targetUrl) }
+                        ?: run {
+                            Log.w("StationsRepository", "Network fetch timed out on first install")
+                            null
+                        }
+                } else {
+                    loadFromNetwork(targetUrl)
+                }
+                if (fetched != null) {
+                    saveToCache(fetched)
+                    fetched
+                } else {
+                    emptyList()
+                }
+            } catch (e: Exception) {
+                Log.e("StationsRepository", "Failed to fetch stations from $targetUrl", e)
+                val fallback = loadFromCache()
+                if (fallback.isNotEmpty()) {
+                    Log.d("StationsRepository", "Using cached stations as fallback")
+                    fallback
+                } else {
+                    throw e
+                }
             }
         }
         

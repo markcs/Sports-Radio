@@ -56,12 +56,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.util.Locale
 
 @OptIn(UnstableApi::class)
@@ -277,7 +280,13 @@ class AudioService : MediaLibraryService() {
         if (squiggleJob?.isActive == true) return
         squiggleJob = serviceScope.launch {
             val app = application as SwiftRadioApplication
-            app.squiggleService.liveScore.collect { score ->
+            app.squiggleService.getLiveScoreFlow(
+                app.teamsRepository.teamsMap,
+                kotlinx.coroutines.flow.flow {
+                    val prefs = getSharedPreferences("footy_radio_prefs", MODE_PRIVATE)
+                    emit(prefs.getBoolean("enable_team_abbreviations", Config.enableTeamAbbreviations))
+                }
+            ).collect { score ->
                 if (currentLiveScore != score) {
                     currentLiveScore = score
                     updateDisplayMetadata()
@@ -931,6 +940,21 @@ class AudioService : MediaLibraryService() {
         super.onDestroy()
     }
 
+    /**
+     * Load stations for the Android Auto browse tree in two phases to minimise spinner time:
+     *
+     * Phase 1 — Text-only items
+     *   Build MediaItems with station name/description but NO artwork, then immediately signal
+     *   [stationsLoaded] so Android Auto can display the list. This completes in ~50 ms when
+     *   the disk cache is warm (cache-first loading in StationsRepository).
+     *
+     * Phase 2 — Parallel artwork
+     *   Fetch artwork for every station concurrently using [async]/[awaitAll], update
+     *   [browseMediaItems], then push a second notifyChildrenChanged so artwork appears.
+     *
+     * [stationsLoaded] is completed in a [finally] block so Android Auto always unblocks, even
+     * if an unexpected exception is thrown during station loading.
+     */
     private fun loadStationsForBrowse() {
         val app = application as SwiftRadioApplication
         val repository = app.stationsRepository
@@ -938,32 +962,66 @@ class AudioService : MediaLibraryService() {
         serviceScope.launch {
             try {
                 stations = repository.loadStations()
-                
-                val items = mutableListOf<MediaItem>()
-                for ((index, station) in stations.withIndex()) {
-                    val metadataBuilder = MediaMetadata.Builder()
-                        .setTitle(station.name)
-                        .setArtist(station.desc)
-                        .setIsBrowsable(false)
-                        .setIsPlayable(true)
-                        .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
-                        
-                    applyArtworkToMetadata(station.resolvedImageUrl, metadataBuilder)
-                        
-                    items.add(MediaItem.Builder()
+
+                // --- Phase 1: text-only items, unblock Android Auto immediately ---
+                browseMediaItems = stations.mapIndexed { index, station ->
+                    MediaItem.Builder()
                         .setMediaId("station_$index")
-                        .setMediaMetadata(metadataBuilder.build())
-                        .build())
+                        .setMediaMetadata(
+                            MediaMetadata.Builder()
+                                .setTitle(station.name)
+                                .setArtist(station.desc)
+                                .setIsBrowsable(false)
+                                .setIsPlayable(true)
+                                .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
+                                .build()
+                        )
+                        .build()
                 }
-                browseMediaItems = items
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load stations for browse", e)
+            } finally {
+                // Always unblock Android Auto — show names (or empty list) rather than spin forever.
+                stationsLoaded.complete(Unit)
+                notifyBrowseChildrenChanged()
             }
-            stationsLoaded.complete(Unit)
-            mediaSession?.let { session ->
-                session.connectedControllers.forEach { controller ->
-                    session.notifyChildrenChanged(controller, ROOT_ID, browseMediaItems.size, null)
+
+            if (stations.isEmpty()) return@launch
+
+            // --- Phase 2: fetch all artwork in parallel, then push an update ---
+            try {
+                val itemsWithArtwork = withContext(Dispatchers.IO) {
+                    stations.mapIndexed { index, station ->
+                        async {
+                            val metadataBuilder = MediaMetadata.Builder()
+                                .setTitle(station.name)
+                                .setArtist(station.desc)
+                                .setIsBrowsable(false)
+                                .setIsPlayable(true)
+                                .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
+                            applyArtworkToMetadata(station.resolvedImageUrl, metadataBuilder)
+                            MediaItem.Builder()
+                                .setMediaId("station_$index")
+                                .setMediaMetadata(metadataBuilder.build())
+                                .build()
+                        }
+                    }.awaitAll()
                 }
+                browseMediaItems = itemsWithArtwork
+                notifyBrowseChildrenChanged()
+                Log.d(TAG, "Browse artwork phase complete (${stations.size} stations)")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load browse artwork", e)
+                // Text-only items are already showing — artwork failure is non-fatal.
+            }
+        }
+    }
+
+    /** Send notifyChildrenChanged to every connected controller for the root browse node. */
+    private fun notifyBrowseChildrenChanged() {
+        mediaSession?.let { session ->
+            session.connectedControllers.forEach { controller ->
+                session.notifyChildrenChanged(controller, ROOT_ID, browseMediaItems.size, null)
             }
         }
     }
@@ -995,50 +1053,82 @@ class AudioService : MediaLibraryService() {
     }
 
     /**
-     * Android Auto and some controllers cannot read "file:///android_asset/" or might fail with remote URIs.
-     * To fix this, we load the artwork as a Bitmap byte array and embed it directly in the metadata.
+     * Apply artwork bytes to [builder] using a three-level cache:
+     *   1. In-memory [artworkCache] — fastest, no I/O.
+     *   2. Disk cache under [cacheDir]/artwork_cache/ — survives service restarts; ~5 ms per image.
+     *   3. Network fetch — only on first encounter; bytes are then written to both caches.
+     *
+     * The disk cache means that after the first run the browse-artwork phase is near-instant,
+     * regardless of network conditions.
      */
     private suspend fun applyArtworkToMetadata(imageUrl: String, builder: MediaMetadata.Builder): Boolean {
         if (imageUrl.isBlank()) return false
 
-        val bytes = artworkCache[imageUrl] ?: withContext(Dispatchers.IO) {
-            if (imageUrl.startsWith("http")) {
-                try {
-                    val app = application as SwiftRadioApplication
-                    val request = okhttp3.Request.Builder().url(imageUrl).build()
-                    app.sharedOkHttpClient.newCall(request).execute().use { response ->
-                        if (response.isSuccessful) {
-                            response.body.bytes()
-                        } else null
+        val bytes = artworkCache[imageUrl]
+            ?: readArtworkFromDisk(imageUrl)
+            ?: withContext(Dispatchers.IO) {
+                if (imageUrl.startsWith("http")) {
+                    try {
+                        val app = application as SwiftRadioApplication
+                        val request = okhttp3.Request.Builder().url(imageUrl).build()
+                        app.sharedOkHttpClient.newCall(request).execute().use { response ->
+                            if (response.isSuccessful) response.body.bytes() else null
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to load remote artwork: $imageUrl", e)
+                        null
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to load remote artwork: $imageUrl", e)
-                    null
-                }
-            } else if (imageUrl.startsWith("file:///android_asset/")) {
-                val assetName = imageUrl.replace("file:///android_asset/", "")
-                try {
-                    val inputStream = assets.open(assetName)
-                    val bitmap = BitmapFactory.decodeStream(inputStream)
-                    val outputStream = ByteArrayOutputStream()
-                    // Compress to reduce IPC transaction size (critical for Android Auto)
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
-                    outputStream.toByteArray()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to load asset artwork: $assetName", e)
-                    null
-                }
-            } else null
-        }
+                } else if (imageUrl.startsWith("file:///android_asset/")) {
+                    val assetName = imageUrl.replace("file:///android_asset/", "")
+                    try {
+                        val inputStream = assets.open(assetName)
+                        val bitmap = BitmapFactory.decodeStream(inputStream)
+                        val outputStream = ByteArrayOutputStream()
+                        // Compress to reduce IPC transaction size (critical for Android Auto)
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+                        outputStream.toByteArray()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to load asset artwork: $assetName", e)
+                        null
+                    }
+                } else null
+            }
 
         if (bytes != null) {
             artworkCache[imageUrl] = bytes
+            writeArtworkToDisk(imageUrl, bytes)
             builder.setArtworkData(bytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
             // Always set URI as well for controllers that prefer it or as fallback
             builder.setArtworkUri(Uri.parse(imageUrl))
             return true
         }
         return false
+    }
+
+    // ---------- Disk artwork cache helpers ----------
+
+    private fun artworkCacheFile(imageUrl: String): File {
+        val safeName = imageUrl.hashCode().toString() + ".jpg"
+        val dir = File(cacheDir, "artwork_cache")
+        dir.mkdirs()
+        return File(dir, safeName)
+    }
+
+    private fun readArtworkFromDisk(imageUrl: String): ByteArray? {
+        return try {
+            val file = artworkCacheFile(imageUrl)
+            if (file.exists()) file.readBytes() else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun writeArtworkToDisk(imageUrl: String, bytes: ByteArray) {
+        try {
+            artworkCacheFile(imageUrl).writeBytes(bytes)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to write artwork to disk cache: $imageUrl", e)
+        }
     }
 
     private suspend fun applyTeamLogoArtwork(

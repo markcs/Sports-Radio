@@ -28,6 +28,10 @@ class SwiftRadioApplication : Application(), SingletonImageLoader.Factory {
         StationsRepository(this, sharedOkHttpClient)
     }
 
+    val teamsRepository: com.markcs.footyradio.data.TeamsRepository by lazy {
+        com.markcs.footyradio.data.TeamsRepository(this, sharedOkHttpClient)
+    }
+
     val artworkService: ArtworkService by lazy {
         ArtworkService(sharedOkHttpClient)
     }

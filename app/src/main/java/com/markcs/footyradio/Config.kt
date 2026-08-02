@@ -6,7 +6,9 @@ object Config {
     val gradientColor: Color = Color.White
 
     const val stationsURL = "https://markcs.github.io/Footy-Radio/stations/stations.json"
+    const val teamsURL = "https://markcs.github.io/Footy-Radio/stations/teams.json"
 
+    const val enableTeamAbbreviations = false
     const val hideNextPreviousButtons = false
     const val enableSearch = true // Toggle to show/hide search bar on the Stations Screen
 

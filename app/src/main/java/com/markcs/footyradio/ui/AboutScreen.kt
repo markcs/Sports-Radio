@@ -49,6 +49,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -98,6 +99,7 @@ fun AboutScreen(
     }
 
     var stationsUrl by remember { mutableStateOf(viewModel.getStationsUrl()) }
+    var teamsUrl by remember { mutableStateOf(viewModel.getTeamsUrl()) }
     val state = viewModel.uiState
     var newStationName by remember { mutableStateOf("") }
     var newStationUrl by remember { mutableStateOf("") }
@@ -148,6 +150,34 @@ fun AboutScreen(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
             )
 
+            // Settings Section
+            SectionHeader(stringResource(R.string.about_section_settings))
+            SectionCard {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                            Text(
+                                text = stringResource(R.string.about_enable_team_abbreviations),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Text(
+                                text = stringResource(R.string.about_enable_team_abbreviations_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = SubtitleGray
+                            )
+                        }
+                        Switch(
+                            checked = state.enableTeamAbbreviations,
+                            onCheckedChange = { viewModel.setTeamAbbreviationsEnabled(it) }
+                        )
+                    }
+                }
+            }
+
             // Stations Config
             SectionHeader(stringResource(R.string.about_section_stations))
             SectionCard {
@@ -188,6 +218,54 @@ fun AboutScreen(
                         Button(
                             onClick = {
                                 viewModel.updateStationsUrl(stationsUrl)
+                                keyboardController?.hide()
+                            },
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.about_station_url_save))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedTextField(
+                        value = teamsUrl,
+                        onValueChange = { teamsUrl = it },
+                        label = { Text(stringResource(R.string.about_teams_url)) },
+                        placeholder = { Text(stringResource(R.string.about_teams_url_hint)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Uri,
+                            imeAction = ImeAction.Done
+                        ),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = SubtitleGray.copy(alpha = 0.5f)
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = {
+                                viewModel.resetTeamsUrl()
+                                teamsUrl = viewModel.getTeamsUrl()
+                                keyboardController?.hide()
+                            },
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(stringResource(R.string.about_station_url_reset))
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                viewModel.updateTeamsUrl(teamsUrl)
                                 keyboardController?.hide()
                             },
                             shape = RoundedCornerShape(8.dp)
