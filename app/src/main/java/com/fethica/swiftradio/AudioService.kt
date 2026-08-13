@@ -3,6 +3,9 @@ package com.fethica.swiftradio
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.AudioManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.SystemClock
 import android.util.Log
@@ -15,12 +18,14 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.metadata.icy.IcyInfo
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
+import com.fethica.swiftradio.data.PlaybackRetryPolicy
 import com.fethica.swiftradio.data.RadioStation
 import com.fethica.swiftradio.data.StationsRepository
 import com.google.common.collect.ImmutableList
@@ -47,7 +52,12 @@ class AudioService : MediaLibraryService() {
     private var retryJob: Job? = null
     private var bufferingRecoveryJob: Job? = null
     private var stallRecoveryJob: Job? = null
-    
+    private var ladderResetJob: Job? = null
+
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    /** Set when a retry was suppressed for lack of network, so the callback knows to resume. */
+    private var awaitingNetwork = false
+
     private var retryCount = 0
     private var lastObservedPositionMs: Long = 0L
     private var lastPositionRealtimeMs: Long = 0L
@@ -118,7 +128,10 @@ class AudioService : MediaLibraryService() {
             if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) return
 
             Log.d(TAG, "Svc media item transition reason=$reason uri='${mediaItem?.localConfiguration?.uri}'")
+            // Switching station IS a legitimate fresh start, unlike a READY blip.
             cancelRetry()
+            cancelLadderReset()
+            awaitingNetwork = false
             retryCount = 0
             if (!isEmptyTrackMetadata(exoPlayer.playlistMetadata)) {
                 exoPlayer.setPlaylistMetadata(MediaMetadata.Builder().build())
@@ -127,7 +140,17 @@ class AudioService : MediaLibraryService() {
 
         override fun onPlayerError(error: PlaybackException) {
             Log.e(TAG, "Svc player error: ${error.errorCodeName} ${error.message}", error)
-            retryCurrentItem("player_error")
+            // The real cause used to stop at the line above while the retry path only
+            // ever saw the useless literal "player_error". Pass the code (and the HTTP
+            // status when there is one) so a failure can be attributed to the station's
+            // server rather than to the listener's connection -- and so the retry loop
+            // can tell a permanent failure from a transient one.
+            val httpStatus = (error.cause as? InvalidResponseCodeException)?.responseCode
+            val reason = if (httpStatus != null) "${error.errorCodeName}:$httpStatus" else error.errorCodeName
+            retryCurrentItem(
+                reason,
+                permanentFailure = PlaybackRetryPolicy.isPermanentFailure(error.errorCode, httpStatus)
+            )
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -143,9 +166,15 @@ class AudioService : MediaLibraryService() {
             
             when (playbackState) {
                 Player.STATE_READY -> {
-                    retryCount = 0
+                    // Deliberately does NOT reset retryCount. A flapping stream reaches
+                    // READY for an instant on every cycle, and resetting here meant the
+                    // ladder never climbed past its shortest rungs, so a broken stream
+                    // was re-prepared every few seconds forever. Recovery is now
+                    // confirmed by PlaybackRetryPolicy.STABLE_PLAYBACK_MS of real
+                    // playback instead.
                     cancelBufferingRecovery()
                     startStallRecovery()
+                    scheduleLadderReset()
                 }
                 Player.STATE_BUFFERING -> scheduleBufferingRecovery()
                 Player.STATE_ENDED -> {
@@ -280,6 +309,7 @@ class AudioService : MediaLibraryService() {
         
         mediaSession = MediaLibrarySession.Builder(this, exoPlayer, libraryCallback).build()
 
+        registerNetworkCallback()
         loadStationsForBrowse()
     }
 
@@ -294,9 +324,11 @@ class AudioService : MediaLibraryService() {
             release()
         }
         player?.removeListener(playerListener)
+        unregisterNetworkCallback()
         cancelRetry()
         cancelBufferingRecovery()
         cancelStallRecovery()
+        cancelLadderReset()
         player = null
         mediaSession = null
         super.onDestroy()
@@ -439,16 +471,28 @@ class AudioService : MediaLibraryService() {
         return metadata.title.isNullOrBlank() && metadata.artist.isNullOrBlank()
     }
 
-    private fun retryCurrentItem(reason: String) {
+    private fun retryCurrentItem(reason: String, permanentFailure: Boolean = false) {
         val exoPlayer = player ?: return
         if (exoPlayer.mediaItemCount <= 0) return
 
+        // A failure means the stream is not stable, so any pending "we recovered"
+        // timer is void.
+        cancelLadderReset()
         retryCount += 1
-        val delayMs = when {
-            retryCount <= 2 -> 0L
-            retryCount <= 5 -> 1000L
-            else -> 3000L
+
+        // Media3 has already exhausted its own per-load retries by the time we get
+        // here, so re-preparing against a dead network or a permanently broken
+        // stream only burns battery. Offline playback resumes from the network
+        // callback; a permanent failure waits for the user to pick another station.
+        if (!PlaybackRetryPolicy.shouldScheduleRetry(hasNetwork(), permanentFailure)) {
+            Log.d(TAG, "Svc retry suppressed reason=$reason permanent=$permanentFailure network=${hasNetwork()}")
+            cancelRetry()
+            awaitingNetwork = !permanentFailure
+            return
         }
+
+        val delayMs = PlaybackRetryPolicy.retryDelayMs(retryCount)
+        Log.d(TAG, "Svc retry #$retryCount in ${delayMs}ms reason=$reason")
 
         cancelRetry()
         retryJob = serviceScope.launch {
@@ -466,6 +510,67 @@ class AudioService : MediaLibraryService() {
     private fun cancelRetry() {
         retryJob?.cancel()
         retryJob = null
+    }
+
+    /**
+     * Clears the backoff ladder only after playback has genuinely held up.
+     * Scheduled on every READY, cancelled by the next failure -- so a stream that
+     * blips READY and drops again never gets its ladder back.
+     */
+    private fun scheduleLadderReset() {
+        if (retryCount == 0) return
+        cancelLadderReset()
+        ladderResetJob = serviceScope.launch {
+            val startedAtMs = SystemClock.elapsedRealtime()
+            delay(PlaybackRetryPolicy.STABLE_PLAYBACK_MS)
+            val activePlayer = player ?: return@launch
+            val playedMs = SystemClock.elapsedRealtime() - startedAtMs
+            if (activePlayer.isPlaying && PlaybackRetryPolicy.shouldResetLadder(playedMs)) {
+                Log.d(TAG, "Svc playback stable for ${playedMs}ms — resetting retry ladder")
+                retryCount = 0
+            }
+        }
+    }
+
+    private fun cancelLadderReset() {
+        ladderResetJob?.cancel()
+        ladderResetJob = null
+    }
+
+    private fun hasNetwork(): Boolean {
+        val cm = getSystemService(ConnectivityManager::class.java) ?: return true
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
+    /**
+     * Resumes the moment connectivity returns rather than waiting out the backoff,
+     * which is what makes a 30s ceiling acceptable on flaky mobile data.
+     */
+    private fun registerNetworkCallback() {
+        val cm = getSystemService(ConnectivityManager::class.java) ?: return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                if (!awaitingNetwork) return
+                awaitingNetwork = false
+                serviceScope.launch {
+                    val activePlayer = player ?: return@launch
+                    if (activePlayer.playWhenReady && activePlayer.mediaItemCount > 0) {
+                        Log.d(TAG, "Svc network restored — retrying immediately")
+                        retryCurrentItem("network_restored")
+                    }
+                }
+            }
+        }
+        runCatching { cm.registerDefaultNetworkCallback(callback) }
+            .onSuccess { networkCallback = callback }
+            .onFailure { Log.w(TAG, "Svc could not register network callback", it) }
+    }
+
+    private fun unregisterNetworkCallback() {
+        val cm = getSystemService(ConnectivityManager::class.java)
+        networkCallback?.let { cb -> runCatching { cm?.unregisterNetworkCallback(cb) } }
+        networkCallback = null
     }
 
     private fun scheduleBufferingRecovery() {
