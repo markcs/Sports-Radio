@@ -70,6 +70,11 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.media3.exoplayer)
+    // HLS is the only format every international broadcaster offers (Al Jazeera,
+    // France 24, Sky News Arabia). Core media3-exoplayer does NOT include it, so
+    // an .m3u8 fails at source-detection without this artifact. Adding it makes
+    // DefaultMediaSourceFactory pick HlsMediaSource automatically — no call-site change.
+    implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media3.ui.compose.material3)
     implementation(libs.kotlinx.serialization.json)
