@@ -11,8 +11,7 @@ package com.fethica.swiftradio.data
  * duplicate the inner ladder.
  *
  * Kept pure and free of Android types so it is unit-testable; `AudioService` is
- * a Service and cannot be exercised directly, which is the same reason
- * [shouldReportPlaybackFailure] lives outside it.
+ * a Service and cannot be exercised directly.
  */
 object PlaybackRetryPolicy {
     const val BASE_DELAY_MS = 1_000L
