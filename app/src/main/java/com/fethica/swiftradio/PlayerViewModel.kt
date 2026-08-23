@@ -149,10 +149,16 @@ class PlayerViewModel(
             getApplication(),
             ComponentName(getApplication(), AudioService::class.java)
         )
-        controllerFuture = MediaController.Builder(getApplication(), sessionToken).buildAsync()
-        controllerFuture.addListener({
+        val future = MediaController.Builder(getApplication(), sessionToken).buildAsync()
+        controllerFuture = future
+        future.addListener({
+            // A disconnect followed by a reconnect (activity recreate) replaces
+            // controllerFuture before this listener runs. Reading the field here
+            // would block the main thread on the new, still-pending future, whose
+            // result is delivered on this same looper: a permanent ANR.
+            if (future !== controllerFuture) return@addListener
             try {
-                val ctrl = controllerFuture.get()
+                val ctrl = future.get()
                 controller = ctrl
                 ctrl.addListener(playerListener)
                 lastKnownMetadata = mergeTrackMetadata(ctrl.mediaMetadata, ctrl.playlistMetadata)
