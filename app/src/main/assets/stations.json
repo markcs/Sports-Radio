@@ -41,6 +41,14 @@
             "longDesc": "Radio 1190 is the bomb."
         },
         {
+            "name": "triple j",
+            "website": "https://www.abc.net.au/triplej",
+            "streamURL": "https://mediaserviceslive.akamaized.net/hls/live/2038308/triplejnsw/masterhq.m3u8",
+            "imageURL": "station-triplej",
+            "desc": "ABC Australia (HLS)",
+            "longDesc": "ABC's national youth music station, streamed over HLS (.m3u8). Included so the player's HLS path is exercised by a real international stream."
+        },
+        {
             "name": "MP3 file sample",
             "website": "https://samplelib.com",
             "streamURL": "https://freetestdata.com/wp-content/uploads/2021/09/Free_Test_Data_1OMB_MP3.mp3",
