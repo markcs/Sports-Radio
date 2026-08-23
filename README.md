@@ -12,6 +12,7 @@ Open-source radio station app for Android built with Kotlin, Jetpack Compose, an
 ## Features
 
 - Stream live and on-demand radio with background playback
+- HLS (.m3u8) streams alongside the usual MP3 and AAC endpoints
 - Android Auto integration with browse tree, playback controls, and artwork
 - Album art and track metadata from streams and the iTunes API
 - Lock screen and notification controls with artwork
