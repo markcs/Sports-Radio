@@ -14,6 +14,64 @@ import org.junit.Test
  */
 class PlaybackRetryPolicyTest {
 
+    // 2026-08-30. media3 runs listeners synchronously inside `stop()`, so the
+    // recovery's own stop() re-entered the STATE_IDLE branch and scheduled the
+    // next recovery: a 30s restart loop after every buffer_timeout, and a
+    // doubled count on the error path that made every 6th strike read as
+    // `state_idle` (55 of 78 reports on 1.0.17) whatever the real cause was.
+    @Test fun `the recovery's own stop does not re-enter the ladder`() =
+        assertFalse(
+            PlaybackRetryPolicy.shouldRecoverFromIdle(
+                playWhenReady = true,
+                recoveryStopInProgress = true,
+                errorReported = false
+            )
+        )
+
+    @Test fun `an idle that carries a player error is left to onPlayerError`() =
+        assertFalse(
+            PlaybackRetryPolicy.shouldRecoverFromIdle(
+                playWhenReady = true,
+                recoveryStopInProgress = false,
+                errorReported = true
+            )
+        )
+
+    @Test fun `an idle with play still requested and no other cause is a failure`() =
+        assertTrue(
+            PlaybackRetryPolicy.shouldRecoverFromIdle(
+                playWhenReady = true,
+                recoveryStopInProgress = false,
+                errorReported = false
+            )
+        )
+
+    @Test fun `an idle after the listener paused is not a failure`() =
+        assertFalse(
+            PlaybackRetryPolicy.shouldRecoverFromIdle(
+                playWhenReady = false,
+                recoveryStopInProgress = false,
+                errorReported = false
+            )
+        )
+
+    // The pending re-prepare ends in play(): left alive across a pause it
+    // resumed audio the listener had just stopped.
+    @Test fun `a pause the listener asked for cancels the pending recovery`() {
+        assertTrue(PlaybackRetryPolicy.shouldCancelRecoveryOnPlayWhenReady(playWhenReady = false, reason = PlaybackRetryPolicy.PLAY_WHEN_READY_REASON_USER_REQUEST))
+        assertTrue(PlaybackRetryPolicy.shouldCancelRecoveryOnPlayWhenReady(playWhenReady = false, reason = PlaybackRetryPolicy.PLAY_WHEN_READY_REASON_REMOTE))
+        assertTrue(PlaybackRetryPolicy.shouldCancelRecoveryOnPlayWhenReady(playWhenReady = false, reason = PlaybackRetryPolicy.PLAY_WHEN_READY_REASON_AUDIO_BECOMING_NOISY))
+    }
+
+    // A phone call takes focus and gives it back; media3 resumes on its own, and
+    // a recovery that was pending must still get its chance afterwards.
+    @Test fun `a transient focus loss keeps the pending recovery`() =
+        assertFalse(PlaybackRetryPolicy.shouldCancelRecoveryOnPlayWhenReady(playWhenReady = false, reason = PlaybackRetryPolicy.PLAY_WHEN_READY_REASON_AUDIO_FOCUS_LOSS))
+
+    @Test fun `resuming never cancels a recovery`() =
+        assertFalse(PlaybackRetryPolicy.shouldCancelRecoveryOnPlayWhenReady(playWhenReady = true, reason = PlaybackRetryPolicy.PLAY_WHEN_READY_REASON_USER_REQUEST))
+
+
     @Test fun `first retry waits one second`() =
         assertEquals(1_000L, PlaybackRetryPolicy.retryDelayMs(attempt = 1))
 

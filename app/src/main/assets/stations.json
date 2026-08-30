@@ -55,6 +55,14 @@
             "imageURL": "",
             "desc": "From: https://samplelib.com",
             "longDesc": "https://samplelib.com"
+        },
+        {
+            "name": "Live365 AAC Test",
+            "website": "https://live365.com",
+            "streamURL": "https://das-edge16-live365-dal02.cdnstream.com/a69455",
+            "imageURL": "stationImage",
+            "desc": "Testing AAC Stream",
+            "longDesc": "A live AAC mountpoint stream directly from Live365."
         }
     ]
 }

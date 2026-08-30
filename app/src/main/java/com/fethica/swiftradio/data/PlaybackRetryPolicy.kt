@@ -86,4 +86,55 @@ object PlaybackRetryPolicy {
         if (status == 408 || status == 429) return false
         return status in 400..499
     }
+
+    // `Player.PLAY_WHEN_READY_CHANGE_REASON_*`, inlined as plain Ints for the
+    // same reason as the error codes: no media3 import, JVM-testable.
+    const val PLAY_WHEN_READY_REASON_USER_REQUEST = 1
+    const val PLAY_WHEN_READY_REASON_AUDIO_FOCUS_LOSS = 2
+    const val PLAY_WHEN_READY_REASON_AUDIO_BECOMING_NOISY = 3
+    const val PLAY_WHEN_READY_REASON_REMOTE = 4
+
+    /**
+     * Whether a STATE_IDLE with playWhenReady still set is a failure the live
+     * ladder should answer to.
+     *
+     * media3 flushes listener events synchronously from inside `stop()`
+     * (`ExoPlayerImpl.stopInternal` -> `updatePlaybackInfo` ->
+     * `ListenerSet.flushEvents`), and `stop()` leaves playWhenReady alone. So
+     * the recovery's own `stop()` re-entered this branch and scheduled the
+     * next recovery before the re-prepare had even started: after a
+     * `buffer_timeout` the stream was torn down again every rung of the ladder,
+     * 30s apart at the ceiling, and each rung cancelled the 30s stability
+     * timer that would have ended it. On the error path the IDLE that follows
+     * `onPlayerError` in the same flush counted a second strike, so every 6th
+     * strike -- the one that reaches analytics -- read `state_idle` whatever
+     * the real cause was.
+     *
+     * [recoveryStopInProgress] is raised only around the ladder's own `stop()`;
+     * [errorReported] is `Player.playerError != null`, which is already set when
+     * the IDLE listener runs because media3 queues EVENT_PLAYER_ERROR first.
+     */
+    fun shouldRecoverFromIdle(
+        playWhenReady: Boolean,
+        recoveryStopInProgress: Boolean,
+        errorReported: Boolean
+    ): Boolean = playWhenReady && !recoveryStopInProgress && !errorReported
+
+    /**
+     * Whether a playWhenReady change should drop the pending recovery.
+     *
+     * Every rung of the ladder ends in `play()`. Left alive across a pause it
+     * resumed audio the listener had just stopped, up to 30s later. A pause the
+     * listener asked for (the button, a headset unplug, a remote/Auto command)
+     * ends the recovery; a transient focus loss does not, because media3 resumes
+     * from that on its own and the stream still deserves its retry afterwards.
+     */
+    fun shouldCancelRecoveryOnPlayWhenReady(playWhenReady: Boolean, reason: Int): Boolean =
+        !playWhenReady && reason in PAUSE_REASONS_THAT_END_RECOVERY
+
+    private val PAUSE_REASONS_THAT_END_RECOVERY = setOf(
+        PLAY_WHEN_READY_REASON_USER_REQUEST,
+        PLAY_WHEN_READY_REASON_AUDIO_BECOMING_NOISY,
+        PLAY_WHEN_READY_REASON_REMOTE
+    )
 }

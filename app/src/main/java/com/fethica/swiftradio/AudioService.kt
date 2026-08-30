@@ -59,6 +59,13 @@ class AudioService : MediaLibraryService() {
     private var awaitingNetwork = false
 
     private var retryCount = 0
+    /**
+     * Raised ONLY around the recovery ladder's own `stop()`. media3 runs the
+     * listener synchronously from inside that call, so the STATE_IDLE it causes
+     * is seen while this is up and must not be read as a new failure (see
+     * [PlaybackRetryPolicy.shouldRecoverFromIdle]).
+     */
+    private var recoveryStopInProgress = false
     private var lastObservedPositionMs: Long = 0L
     private var lastPositionRealtimeMs: Long = 0L
     private val audioManager: AudioManager by lazy {
@@ -184,8 +191,19 @@ class AudioService : MediaLibraryService() {
                 Player.STATE_IDLE -> {
                     cancelBufferingRecovery()
                     cancelStallRecovery()
-                    if (exoPlayer?.playWhenReady == true) {
+                    val errorReported = exoPlayer?.playerError != null
+                    if (PlaybackRetryPolicy.shouldRecoverFromIdle(
+                            playWhenReady = exoPlayer?.playWhenReady == true,
+                            recoveryStopInProgress = recoveryStopInProgress,
+                            errorReported = errorReported
+                        )
+                    ) {
                         retryCurrentItem("state_idle")
+                    } else {
+                        // The recovery's own stop(), the IDLE that follows an
+                        // onPlayerError already counted, or a pause: none of
+                        // them is a new strike.
+                        Log.d(TAG, "Svc idle not a failure recoveryStop=$recoveryStopInProgress error=$errorReported playWhenReady=${exoPlayer?.playWhenReady}")
                     }
                 }
             }
@@ -208,6 +226,14 @@ class AudioService : MediaLibraryService() {
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             if (playWhenReady) startStallRecovery() else cancelStallRecovery()
+            if (PlaybackRetryPolicy.shouldCancelRecoveryOnPlayWhenReady(playWhenReady, reason) &&
+                retryJob?.isActive == true
+            ) {
+                // The pending rung would end in play() and resume what the
+                // listener just paused.
+                Log.d(TAG, "Svc pause cancels pending recovery reason=$reason")
+                cancelRetry()
+            }
         }
     }
 
@@ -500,7 +526,12 @@ class AudioService : MediaLibraryService() {
             val activePlayer = player ?: return@launch
             if (activePlayer.mediaItemCount <= 0) return@launch
             val index = activePlayer.currentMediaItemIndex.coerceIn(0, activePlayer.mediaItemCount - 1)
-            activePlayer.stop()
+            recoveryStopInProgress = true
+            try {
+                activePlayer.stop()
+            } finally {
+                recoveryStopInProgress = false
+            }
             activePlayer.seekTo(index, 0)
             activePlayer.prepare()
             activePlayer.play()
