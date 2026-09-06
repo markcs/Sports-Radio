@@ -41,7 +41,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 
 class AudioService : MediaLibraryService() {
@@ -90,43 +89,42 @@ class AudioService : MediaLibraryService() {
     private val playerListener = object : Player.Listener {
         override fun onMetadata(metadata: Metadata) {
             val exoPlayer = player ?: return
-            serviceScope.launch(Dispatchers.Default) {
-                val icyTitle = extractIcyTitle(metadata) ?: return@launch
-                val parsedMetadata = buildTrackMetadataFromIcy(icyTitle)
-                
-                withContext(Dispatchers.Main) {
-                    if (trackMetadataEquivalent(exoPlayer.playlistMetadata, parsedMetadata)) return@withContext
-                    Log.d(TAG, "Svc ICY metadata raw='$icyTitle' title='${parsedMetadata.title}' artist='${parsedMetadata.artist}'")
-                    
-                    // Update global playlist metadata for the phone UI
-                    exoPlayer.setPlaylistMetadata(parsedMetadata)
-                    
-                    // Update the currently playing MediaItem to force a UI refresh on Android Auto
-                    val currentItem = exoPlayer.currentMediaItem
-                    if (currentItem != null) {
-                        val baseStationMeta = currentItem.mediaMetadata
-                        val newMetadataBuilder = baseStationMeta.buildUpon()
-                            .setTitle(parsedMetadata.title ?: baseStationMeta.title)
-                        
-                        if (parsedMetadata.artist != null) {
-                            newMetadataBuilder.setArtist(parsedMetadata.artist)
-                        }
+            // Handled synchronously, on the player's thread. This used to hop
+            // to a background dispatcher and back, and a station switch inside
+            // that gap stamped the OLD stream's ICY title onto the NEW current
+            // item: the bar showed the previous station's track for the station
+            // that had just started. The parsing is a few string operations, so
+            // there is nothing to gain from the hop and a race to lose.
+            val icyTitle = extractIcyTitle(metadata) ?: return
+            val parsedMetadata = buildTrackMetadataFromIcy(icyTitle)
+            if (trackMetadataEquivalent(exoPlayer.playlistMetadata, parsedMetadata)) return
+            Log.d(TAG, "Svc ICY metadata raw='$icyTitle' title='${parsedMetadata.title}' artist='${parsedMetadata.artist}'")
 
-                        if (baseStationMeta.artworkUri != null) {
-                            newMetadataBuilder.setArtworkUri(baseStationMeta.artworkUri)
-                        }
-                        if (baseStationMeta.artworkData != null) {
-                            newMetadataBuilder.setArtworkData(baseStationMeta.artworkData, baseStationMeta.artworkDataType)
-                        }
-                        
-                        val newItem = currentItem.buildUpon()
-                            .setMediaMetadata(newMetadataBuilder.build())
-                            .build()
-                            
-                        exoPlayer.replaceMediaItem(exoPlayer.currentMediaItemIndex, newItem)
-                    }
-                }
+            // Update global playlist metadata for the phone UI
+            exoPlayer.setPlaylistMetadata(parsedMetadata)
+
+            // Update the currently playing MediaItem to force a UI refresh on Android Auto
+            val currentItem = exoPlayer.currentMediaItem ?: return
+            val baseStationMeta = currentItem.mediaMetadata
+            val newMetadataBuilder = baseStationMeta.buildUpon()
+                .setTitle(parsedMetadata.title ?: baseStationMeta.title)
+
+            if (parsedMetadata.artist != null) {
+                newMetadataBuilder.setArtist(parsedMetadata.artist)
             }
+
+            if (baseStationMeta.artworkUri != null) {
+                newMetadataBuilder.setArtworkUri(baseStationMeta.artworkUri)
+            }
+            if (baseStationMeta.artworkData != null) {
+                newMetadataBuilder.setArtworkData(baseStationMeta.artworkData, baseStationMeta.artworkDataType)
+            }
+
+            val newItem = currentItem.buildUpon()
+                .setMediaMetadata(newMetadataBuilder.build())
+                .build()
+
+            exoPlayer.replaceMediaItem(exoPlayer.currentMediaItemIndex, newItem)
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
