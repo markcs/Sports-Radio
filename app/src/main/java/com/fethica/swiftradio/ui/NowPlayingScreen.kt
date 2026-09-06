@@ -90,7 +90,10 @@ fun NowPlayingScreen(
     onNextClick: () -> Unit,
     onPreviousClick: () -> Unit,
     onSeek: (Long) -> Unit = {},
-    hideNextPrevious: Boolean = false
+    hideNextPrevious: Boolean = false,
+    // Where the popup host lands the artwork it carries up from the bar. Null
+    // keeps the screen self-contained for previews and non-popup use.
+    imageSlot: (@Composable (Modifier) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var showInfoSheet by remember { mutableStateOf(false) }
@@ -150,16 +153,9 @@ fun NowPlayingScreen(
                 .windowInsetsPadding(WindowInsets.navigationBars),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Drag handle
-            Spacer(modifier = Modifier.height(12.dp))
-            Box(
-                modifier = Modifier
-                    .size(width = 40.dp, height = 4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Color.White.copy(alpha = 0.3f))
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
+            // The 48 dp band below the status bar belongs to the popup host's
+            // close control, so the screen draws nothing there.
+            Spacer(modifier = Modifier.height(48.dp))
 
             // Artwork with buffering overlay and play/pause scale animation
             val artworkScale by animateFloatAsState(
@@ -172,13 +168,24 @@ fun NowPlayingScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
-                    .graphicsLayer {
-                        scaleX = artworkScale
-                        scaleY = artworkScale
-                    }
+                    // The travelling artwork scales and clips itself, in step
+                    // with the morph; only the self-contained image does it here.
+                    .then(
+                        if (imageSlot == null) {
+                            Modifier.graphicsLayer {
+                                scaleX = artworkScale
+                                scaleY = artworkScale
+                            }
+                        } else {
+                            Modifier
+                        }
+                    )
                     .clip(RoundedCornerShape(16.dp)),
                 contentAlignment = Alignment.Center
             ) {
+                if (imageSlot != null) {
+                    imageSlot(Modifier.fillMaxSize())
+                } else {
                 AnimatedContent(
                     targetState = artworkUrl,
                     transitionSpec = { fadeIn() togetherWith fadeOut() },
@@ -213,6 +220,7 @@ fun NowPlayingScreen(
                             )
                         }
                     }
+                }
                 }
             }
 

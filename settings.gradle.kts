@@ -19,6 +19,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // compose-popupbar, the now playing bar, is published on JitPack.
+        maven { url = uri("https://jitpack.io") }
     }
 }
 

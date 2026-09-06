@@ -59,6 +59,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
@@ -79,7 +80,9 @@ fun StationsScreen(
     isBuffering: Boolean = false,
     isError: Boolean = false,
     isRefreshing: Boolean = false,
-    showMiniPlayer: Boolean,
+    // The popup host's bottom inset: the now playing bar floats over the list,
+    // so the last row needs room to scroll out from under it.
+    listBottomPadding: Dp = 0.dp,
     onStationClick: (RadioStation) -> Unit,
     onRefresh: () -> Unit = {},
     onAboutClick: () -> Unit = {}
@@ -196,7 +199,7 @@ fun StationsScreen(
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(bottom = if (showMiniPlayer) 80.dp else 0.dp)
+                            contentPadding = PaddingValues(bottom = listBottomPadding)
                         ) {
                             items(filteredStations, key = { it.streamURL }) { station ->
                                 StationRow(

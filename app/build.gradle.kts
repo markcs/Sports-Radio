@@ -85,6 +85,8 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation(libs.androidx.splashscreen)
+    // The now playing bar and its swipe-up player: one popup host owns both.
+    implementation(libs.compose.popupbar)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

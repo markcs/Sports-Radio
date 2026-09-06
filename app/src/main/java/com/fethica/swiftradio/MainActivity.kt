@@ -11,44 +11,39 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.BottomSheetScaffold
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SheetValue
-import androidx.compose.material3.Surface
-import androidx.compose.material3.rememberBottomSheetScaffoldState
-import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fethica.popupbar.PopupBar
+import com.fethica.popupbar.PopupHost
+import com.fethica.popupbar.rememberPopupState
 import com.fethica.swiftradio.ui.AboutScreen
 import com.fethica.swiftradio.ui.NowPlayingScreen
 import com.fethica.swiftradio.ui.StationsScreen
-import com.fethica.swiftradio.ui.components.MiniPlayer
+import com.fethica.swiftradio.ui.components.NowPlayingArtwork
+import com.fethica.swiftradio.ui.components.NowPlayingArtworkCorner
 import com.fethica.swiftradio.ui.theme.SwiftRadioTheme
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
-    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
@@ -96,30 +91,73 @@ class MainActivity : ComponentActivity() {
 
             SwiftRadioTheme {
                 var showAbout by remember { mutableStateOf(false) }
-                val scope = rememberCoroutineScope()
-                val bottomSheetState = rememberStandardBottomSheetState(
-                    initialValue = SheetValue.Hidden,
-                    skipHiddenState = false
-                )
-                val scaffoldState = rememberBottomSheetScaffoldState(
-                    bottomSheetState = bottomSheetState
-                )
+                val currentStation = state.currentStation
+
+                // The bar is the app's "something is playing" indicator: it
+                // arrives with the first station and leaves when playback is
+                // cleared. Nothing else drives its presentation. Remembered
+                // above the About switch so opening About does not reset it.
+                val popupState = rememberPopupState()
+                LaunchedEffect(currentStation != null) {
+                    if (currentStation != null) popupState.present() else popupState.hide()
+                }
 
                 if (showAbout) {
                     AboutScreen(onBack = { showAbout = false })
                 } else {
-                    BottomSheetScaffold(
-                        scaffoldState = scaffoldState,
-                        sheetPeekHeight = 0.dp,
-                        sheetDragHandle = null,
-                        sheetContainerColor = MaterialTheme.colorScheme.surface,
-                        sheetContent = {
-                            if (state.currentStation != null) {
+                    // One host owns the now playing bar and the full player it
+                    // morphs into. The station list only learns how much room
+                    // to leave at the bottom, through the padding it is handed.
+                    PopupHost(
+                        state = popupState,
+                        modifier = Modifier.fillMaxSize(),
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        popupBar = {
+                            val labels = nowPlayingLabels(
+                                stationName = currentStation?.name.orEmpty(),
+                                stationDesc = currentStation?.desc.orEmpty(),
+                                trackTitle = state.trackTitle,
+                                artistName = state.artistName
+                            )
+                            PopupBar(
+                                title = labels.title,
+                                subtitle = labels.subtitle.takeIf { it.isNotBlank() },
+                                actions = {
+                                    IconButton(onClick = { vm.togglePlayPause() }) {
+                                        if (state.isPlaying && state.isLive) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Stop,
+                                                contentDescription = stringResource(R.string.cd_stop)
+                                            )
+                                        } else {
+                                            Icon(
+                                                painter = painterResource(
+                                                    if (state.isPlaying) R.drawable.ic_pause else R.drawable.ic_play
+                                                ),
+                                                contentDescription = stringResource(
+                                                    if (state.isPlaying) R.string.cd_pause else R.string.cd_play
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                            )
+                        },
+                        popupImage = {
+                            NowPlayingArtwork(
+                                artworkUrl = vm.resolvedArtwork,
+                                isBuffering = state.isBuffering,
+                                isPlaying = state.isPlaying,
+                                expansion = { popupState.progress }
+                            )
+                        },
+                        popupContent = {
+                            if (currentStation != null) {
                                 NowPlayingScreen(
-                                    stationName = state.currentStation?.name ?: "",
-                                    stationDesc = state.currentStation?.desc ?: "",
-                                    stationLongDesc = state.currentStation?.longDesc ?: "",
-                                    stationWebsite = state.currentStation?.website ?: "",
+                                    stationName = currentStation.name,
+                                    stationDesc = currentStation.desc,
+                                    stationLongDesc = currentStation.longDesc,
+                                    stationWebsite = currentStation.website,
                                     trackTitle = state.trackTitle,
                                     artistName = state.artistName,
                                     artworkUrl = vm.resolvedArtwork,
@@ -132,59 +170,60 @@ class MainActivity : ComponentActivity() {
                                     onNextClick = { vm.nextStation() },
                                     onPreviousClick = { vm.previousStation() },
                                     onSeek = { vm.seekTo(it) },
-                                    hideNextPrevious = Config.hideNextPreviousButtons
+                                    hideNextPrevious = Config.hideNextPreviousButtons,
+                                    // Where the host lands the artwork it is
+                                    // already carrying in the bar.
+                                    imageSlot = { modifier ->
+                                        PopupImageSlot(
+                                            modifier,
+                                            RoundedCornerShape(NowPlayingArtworkCorner)
+                                        )
+                                    }
                                 )
                             }
-                        },
-                        modifier = Modifier.fillMaxSize()
-                    ) { padding ->
-                        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-                            StationsScreen(
-                                stations = state.stations,
-                                currentStation = state.currentStation,
-                                isPlaying = state.isPlaying,
-                                isBuffering = state.isBuffering,
-                                isError = state.isError,
-                                isRefreshing = state.isRefreshing,
-                                showMiniPlayer = state.currentStation != null,
-                                onStationClick = { station ->
-                                    vm.playStation(station)
-                                    scope.launch {
-                                        bottomSheetState.partialExpand()
-                                    }
-                                },
-                                onRefresh = { vm.refreshStations() },
-                                onAboutClick = { showAbout = true }
-                            )
-
-                            // Mini player overlay at the bottom
-                            if (state.currentStation != null) {
-                                Surface(
-                                    modifier = Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            scope.launch { bottomSheetState.expand() }
-                                        },
-                                    shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp),
-                                    color = MaterialTheme.colorScheme.surface,
-                                    shadowElevation = 8.dp
-                                ) {
-                                    MiniPlayer(
-                                        stationName = state.currentStation?.name ?: "",
-                                        trackTitle = state.trackTitle,
-                                        artistName = state.artistName,
-                                        artworkUrl = vm.resolvedArtwork,
-                                        isPlaying = state.isPlaying,
-                                        isLive = state.isLive,
-                                        onPlayPauseClick = { vm.togglePlayPause() }
-                                    )
-                                }
-                            }
                         }
+                    ) { padding ->
+                        StationsScreen(
+                            stations = state.stations,
+                            currentStation = currentStation,
+                            isPlaying = state.isPlaying,
+                            isBuffering = state.isBuffering,
+                            isError = state.isError,
+                            isRefreshing = state.isRefreshing,
+                            listBottomPadding = padding.calculateBottomPadding(),
+                            onStationClick = { station -> vm.playStation(station) },
+                            onRefresh = { vm.refreshStations() },
+                            onAboutClick = { showAbout = true }
+                        )
                     }
                 }
             }
         }
     }
+}
+
+private data class NowPlayingLabels(val title: String, val subtitle: String)
+
+/**
+ * What the bar shows: the track when the stream carries metadata, otherwise the
+ * station; the station name or its description underneath. The same rule the
+ * full player applies to its own title and subtitle.
+ */
+private fun nowPlayingLabels(
+    stationName: String,
+    stationDesc: String,
+    trackTitle: String,
+    artistName: String
+): NowPlayingLabels {
+    val normalizedTitle = trackTitle.trim()
+    val normalizedArtist = artistName.trim()
+    val hasTrackMetadata = normalizedTitle.isNotBlank() &&
+        !normalizedTitle.equals(stationName, ignoreCase = true)
+    val title = when {
+        !hasTrackMetadata -> stationName
+        normalizedArtist.isNotBlank() -> "$normalizedTitle — $normalizedArtist"
+        else -> normalizedTitle
+    }
+    val subtitle = if (hasTrackMetadata) stationName else stationDesc
+    return NowPlayingLabels(title, subtitle)
 }

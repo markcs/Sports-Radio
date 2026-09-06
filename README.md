@@ -5,13 +5,14 @@
 Open-source radio station app for Android built with Kotlin, Jetpack Compose, and Media3. Yes, it's called Swift Radio and it's written in Kotlin. The name comes from the [iOS original](https://github.com/analogcode/Swift-Radio-Pro). Same station JSON format, matching design and behavior.
 
 <p align="center">
-    <img alt="Station list" src="screenshots/stations.png" width="300">
-    <img alt="Now playing" src="screenshots/player.png" width="300">
+    <img alt="Station list with the now playing bar at the bottom" src="screenshots/stations.png" width="300">
+    <img alt="Now playing player expanded from the bar" src="screenshots/player.png" width="300">
 </p>
 
 ## Features
 
 - Stream live and on-demand radio with background playback
+- Now playing bar that swipes up into the full player, built on [compose-popupbar](https://github.com/fethica/compose-popupbar)
 - HLS (.m3u8) streams alongside the usual MP3 and AAC endpoints
 - Android Auto integration with browse tree, playback controls, and artwork
 - Album art and track metadata from streams and the iTunes API
@@ -102,6 +103,7 @@ Android will automatically use the correct language based on the user's device s
 |---------|---------|
 | [AndroidX Media3](https://developer.android.com/media/media3) | Audio playback, media session, Android Auto |
 | [Jetpack Compose](https://developer.android.com/compose) | UI framework with Material 3 |
+| [compose-popupbar](https://github.com/fethica/compose-popupbar) | Now playing bar and its swipe-up player |
 | [Coil](https://github.com/coil-kt/coil) | Image loading and caching |
 | [Ktor](https://github.com/ktorio/ktor) | HTTP client for remote station loading |
 | [Kotlinx Serialization](https://github.com/Kotlin/kotlinx.serialization) | JSON parsing |

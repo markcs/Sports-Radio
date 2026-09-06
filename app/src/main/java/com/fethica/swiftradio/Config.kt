@@ -20,6 +20,7 @@ object Config {
 
     val libraries = listOf(
         LibraryItem("fethica", "Swift-Radio-Android"),
+        LibraryItem("fethica", "compose-popupbar"),
         LibraryItem("coil-kt", "coil"),
         LibraryItem("ktorio", "ktor"),
     )
