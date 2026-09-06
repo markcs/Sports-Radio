@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -67,7 +68,7 @@ import coil3.request.crossfade
 import com.fethica.swiftradio.Config
 import com.fethica.swiftradio.R
 import com.fethica.swiftradio.data.RadioStation
-import com.fethica.swiftradio.ui.components.EqualizerAnimation
+import com.fethica.swiftradio.ui.components.ArtworkPlaybackOverlay
 import com.fethica.swiftradio.ui.components.GradientBackground
 import com.fethica.swiftradio.ui.theme.SubtitleGray
 
@@ -103,6 +104,13 @@ fun StationsScreen(
     }
 
     Scaffold(
+        // The popup host owns the bottom edge: the padding it hands this screen
+        // already covers the navigation bar and the now playing bar, and the
+        // list is meant to scroll under both. Left to its default, the scaffold
+        // padded its content above the gesture area and its container color
+        // showed through as a band under the bar. The top app bar keeps its own
+        // status bar inset.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.app_title)) },
@@ -279,26 +287,14 @@ private fun StationRow(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Buffering overlay on artwork
-                Crossfade(
-                    targetState = isBuffering,
-                    label = "bufferingOverlay"
-                ) { buffering ->
-                    if (buffering) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.5f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(
-                                color = Color.White,
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
-                            )
-                        }
-                    }
-                }
+                // Playing bars or a buffering spinner sit on the artwork, so
+                // the text column keeps its layout whichever row is current.
+                ArtworkPlaybackOverlay(
+                    isBuffering = isBuffering,
+                    isCurrent = isCurrentStation,
+                    isPlaying = isPlaying,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
 
             Spacer(modifier = Modifier.width(14.dp))
@@ -310,25 +306,13 @@ private fun StationRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (isCurrentStation) {
-                        EqualizerAnimation(
-                            isAnimating = isPlaying,
-                            barColor = SubtitleGray,
-                            modifier = Modifier.height(12.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                    }
-                    Text(
-                        text = station.desc,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = SubtitleGray,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                Text(
+                    text = station.desc,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = SubtitleGray,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }

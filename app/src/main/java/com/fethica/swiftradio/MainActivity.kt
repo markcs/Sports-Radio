@@ -112,7 +112,10 @@ class MainActivity : ComponentActivity() {
                     PopupHost(
                         state = popupState,
                         modifier = Modifier.fillMaxSize(),
-                        containerColor = MaterialTheme.colorScheme.surface,
+                        // A step lighter than the station cards, so the bar reads
+                        // as a player docked over the list and not as one more
+                        // row. The expanded player paints its own background.
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         popupBar = {
                             val labels = nowPlayingLabels(
                                 stationName = currentStation?.name.orEmpty(),
