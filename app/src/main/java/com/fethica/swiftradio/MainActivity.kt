@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fethica.popupbar.PopupBar
 import com.fethica.popupbar.PopupHost
+import com.fethica.popupbar.PopupProgressStyle
 import com.fethica.popupbar.rememberPopupState
 import com.fethica.swiftradio.ui.AboutScreen
 import com.fethica.swiftradio.ui.NowPlayingScreen
@@ -119,9 +120,33 @@ class MainActivity : ComponentActivity() {
                                 trackTitle = state.trackTitle,
                                 artistName = state.artistName
                             )
+                            // On-demand streams only: a live stream has no
+                            // position to draw and nowhere to seek to. The
+                            // lambdas are remembered because the strip keys its
+                            // gesture detector on them; fresh ones every
+                            // recomposition would restart a seek under the finger.
+                            val durationMs = state.durationMs
+                            val seekable = !state.isLive && durationMs > 0
+                            val progress = remember(seekable, durationMs) {
+                                if (seekable) {
+                                    { vm.currentPositionMs.toFloat() / durationMs.toFloat() }
+                                } else {
+                                    null
+                                }
+                            }
+                            val onSeek = remember(seekable, durationMs) {
+                                if (seekable) {
+                                    { fraction: Float -> vm.seekTo((fraction * durationMs).toLong()) }
+                                } else {
+                                    null
+                                }
+                            }
                             PopupBar(
                                 title = labels.title,
                                 subtitle = labels.subtitle.takeIf { it.isNotBlank() },
+                                progress = progress,
+                                onSeek = onSeek,
+                                progressStyle = PopupProgressStyle.Top,
                                 actions = {
                                     IconButton(onClick = { vm.togglePlayPause() }) {
                                         if (state.isPlaying && state.isLive) {
