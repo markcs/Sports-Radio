@@ -78,6 +78,8 @@ fun AboutScreen(
     }
 
     Scaffold(
+        // The nav bar inset is handled by the content, not by the Scaffold.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.about_title)) },
@@ -100,8 +102,10 @@ fun AboutScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .windowInsetsPadding(WindowInsets.navigationBars)
                 .verticalScroll(rememberScrollState())
+                // Inside the scroll, so the page runs under the gesture area
+                // like the station list and only its end clears the inset.
+                .windowInsetsPadding(WindowInsets.navigationBars)
         ) {
             // Header
             Text(

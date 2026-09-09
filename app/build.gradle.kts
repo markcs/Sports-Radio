@@ -87,6 +87,8 @@ dependencies {
     implementation(libs.androidx.splashscreen)
     // The now playing bar and its swipe-up player: one popup host owns both.
     implementation(libs.compose.popupbar)
+    // Dominant colour of the artwork, the tint of the now playing bar's glass.
+    implementation(libs.androidx.palette)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

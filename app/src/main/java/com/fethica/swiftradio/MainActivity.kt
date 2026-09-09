@@ -25,6 +25,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
@@ -34,12 +35,13 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fethica.popupbar.PopupBar
 import com.fethica.popupbar.PopupHost
-import com.fethica.popupbar.PopupProgressStyle
+import com.fethica.popupbar.PopupBackground
 import com.fethica.popupbar.rememberPopupState
 import com.fethica.swiftradio.ui.AboutScreen
 import com.fethica.swiftradio.ui.NowPlayingScreen
 import com.fethica.swiftradio.ui.StationsScreen
 import com.fethica.swiftradio.ui.components.NowPlayingArtwork
+import com.fethica.swiftradio.ui.components.rememberArtworkTint
 import com.fethica.swiftradio.ui.components.NowPlayingArtworkCorner
 import com.fethica.swiftradio.ui.theme.SwiftRadioTheme
 
@@ -109,12 +111,31 @@ class MainActivity : ComponentActivity() {
                     // One host owns the now playing bar and the full player it
                     // morphs into. The station list only learns how much room
                     // to leave at the bottom, through the padding it is handed.
+                    // Bar style, progress strip and background are Config switches.
+                    // The cover tint is the dominant colour of the current artwork;
+                    // until the first one is read the glass is plain.
+                    val artworkTint = if (Config.popupBackground == Config.PopupBackgroundOption.TranslucentCoverTint) {
+                        rememberArtworkTint(vm.resolvedArtwork)
+                    } else {
+                        Color.Unspecified
+                    }
+                    val background = when (Config.popupBackground) {
+                        Config.PopupBackgroundOption.Opaque -> PopupBackground.Opaque
+                        Config.PopupBackgroundOption.Translucent -> PopupBackground.Translucent()
+                        Config.PopupBackgroundOption.TranslucentAppTint -> PopupBackground.Translucent(MaterialTheme.colorScheme.primary)
+                        Config.PopupBackgroundOption.TranslucentCoverTint -> PopupBackground.Translucent(artworkTint)
+                        Config.PopupBackgroundOption.Artwork -> PopupBackground.Artwork()
+                    }
                     PopupHost(
                         state = popupState,
                         modifier = Modifier.fillMaxSize(),
+                        barStyle = Config.popupBarStyle,
+                        background = background,
                         // A step lighter than the station cards, so the bar reads
                         // as a player docked over the list and not as one more
-                        // row. The expanded player paints its own background.
+                        // row. It is also the tone the glass and the artwork
+                        // backdrop take. With Opaque the expanded player paints
+                        // its own background.
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         popupBar = {
                             val labels = nowPlayingLabels(
@@ -149,7 +170,7 @@ class MainActivity : ComponentActivity() {
                                 subtitle = labels.subtitle.takeIf { it.isNotBlank() },
                                 progress = progress,
                                 onSeek = onSeek,
-                                progressStyle = PopupProgressStyle.Top,
+                                progressStyle = Config.popupProgressStyle,
                                 actions = {
                                     IconButton(onClick = { vm.togglePlayPause() }) {
                                         if (state.isPlaying && state.isLive) {
@@ -198,6 +219,7 @@ class MainActivity : ComponentActivity() {
                                     onNextClick = { vm.nextStation() },
                                     onPreviousClick = { vm.previousStation() },
                                     onSeek = { vm.seekTo(it) },
+                                    paintsBackground = Config.popupBackground == Config.PopupBackgroundOption.Opaque,
                                     hideNextPrevious = Config.hideNextPreviousButtons,
                                     // Where the host lands the artwork it is
                                     // already carrying in the bar.

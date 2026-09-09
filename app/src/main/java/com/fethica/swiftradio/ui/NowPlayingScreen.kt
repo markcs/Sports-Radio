@@ -91,6 +91,9 @@ fun NowPlayingScreen(
     onPreviousClick: () -> Unit,
     onSeek: (Long) -> Unit = {},
     hideNextPrevious: Boolean = false,
+    // False when the popup host paints the backdrop (glass or blurred artwork): the screen then stays
+    // transparent so the host's material shows through, as compose-popupbar asks.
+    paintsBackground: Boolean = true,
     // Where the popup host lands the artwork it carries up from the bar. Null
     // keeps the screen self-contained for previews and non-popup use.
     imageSlot: (@Composable (Modifier) -> Unit)? = null
@@ -115,6 +118,7 @@ fun NowPlayingScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        if (paintsBackground) {
         // Blurred background artwork with animated transition
         AnimatedContent(
             targetState = artworkUrl,
@@ -143,6 +147,7 @@ fun NowPlayingScreen(
 
         // Gradient overlay
         GradientBackground()
+        }
 
         // Content
         Column(

@@ -24,14 +24,14 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import coil3.size.Size
 import com.fethica.popupbar.PopupBarDefaults
-import com.fethica.popupbar.PopupBarStyle
+import com.fethica.swiftradio.Config
 import kotlin.math.PI
 import kotlin.math.cos
 
 /** The full player's artwork corner. Also the shape its popup image slot reports. */
 val NowPlayingArtworkCorner = 16.dp
 
-private val BarArtworkCorner = PopupBarDefaults.imageCornerRadius(PopupBarStyle.Floating)
+private val BarArtworkCorner = PopupBarDefaults.imageCornerRadius(Config.popupBarStyle)
 
 /**
  * The single artwork instance the popup host carries between the bar's thumbnail

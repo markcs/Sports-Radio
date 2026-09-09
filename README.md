@@ -5,14 +5,14 @@
 An open-source starting point for building an Android radio app with Kotlin, Jetpack Compose, and Media3. Load stations from a local or hosted JSON file, using the same format as [Swift Radio on iOS](https://github.com/analogcode/Swift-Radio-Pro).
 
 <p align="center">
-    <img alt="Station list with the now playing bar at the bottom" src="screenshots/stations.png" width="300">
-    <img alt="Now playing player expanded from the bar" src="screenshots/player.png" width="300">
+    <img alt="Station list with the now playing bar at the bottom, a pane of dark glass tinted by the current artwork" src="screenshots/stations.png" width="300" hspace="16">
+    <img alt="The player expanded from the bar on the same glass, the station list showing through as blurred colour" src="screenshots/player.png" width="300" hspace="16">
 </p>
 
 ## Features
 
 - Live and on-demand audio with background playback and controls on the lock screen and in notifications
-- Now playing bar that swipes up into the full player, built on [compose-popupbar](https://github.com/fethica/compose-popupbar)
+- Now playing bar that swipes up into the full player, built on [compose-popupbar](https://github.com/fethica/compose-popupbar): a pane of glass tinted by the artwork by default, with the bar style, progress strip and background as config switches
 - HLS (.m3u8) streams alongside the usual MP3 and AAC endpoints
 - Android Auto integration with browse tree, playback controls, and artwork
 - Album art and track metadata from streams and the iTunes API
@@ -101,6 +101,10 @@ object Config {
     const val stationsURL = "https://..."         // remote stations JSON URL
     const val hideNextPreviousButtons = false      // hide skip controls on the player
     const val enableSearch = true                  // show/hide search bar on station list
+    val popupBarStyle = PopupBarStyle.Floating     // Floating, FloatingCompact, Prominent, Compact
+    val popupProgressStyle = PopupProgressStyle.Top // progress strip on the bar: None, Top, Bottom
+    val popupBackground = PopupBackgroundOption.TranslucentCoverTint
+        // Opaque, Translucent, TranslucentAppTint, TranslucentCoverTint (glass tinted by the artwork), Artwork
     const val email = "contact@example.com"
     const val feedbackURL = "https://..."
     const val shareText = "Check out Swift Radio!"
@@ -125,6 +129,7 @@ Android will automatically use the correct language based on the user's device s
 | [Jetpack Compose](https://developer.android.com/compose) | UI framework with Material 3 |
 | [compose-popupbar](https://github.com/fethica/compose-popupbar) | Now playing bar and its swipe-up player |
 | [Coil](https://github.com/coil-kt/coil) | Image loading and caching |
+| [AndroidX Palette](https://developer.android.com/jetpack/androidx/releases/palette) | Dominant colour of the artwork, for the glass tint |
 | [Ktor](https://github.com/ktorio/ktor) | HTTP client for remote station loading |
 | [Kotlinx Serialization](https://github.com/Kotlin/kotlinx.serialization) | JSON parsing |
 
