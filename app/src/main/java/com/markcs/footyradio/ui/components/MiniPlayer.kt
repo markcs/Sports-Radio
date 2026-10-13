@@ -38,6 +38,11 @@ import coil3.request.crossfade
 import com.markcs.footyradio.R
 import com.markcs.footyradio.ui.theme.SubtitleGray
 
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.input.pointer.pointerInput
+
 @Composable
 fun MiniPlayer(
     stationName: String,
@@ -45,13 +50,16 @@ fun MiniPlayer(
     artistName: String,
     artworkUrl: String?,
     stationArtworkUrl: String?, 
-    hTeam: String?,   // ADD
-    aTeam: String?,   // ADD
+    hTeam: String?,
+    aTeam: String?,
     liveScore: String? = null,
     isPlaying: Boolean,
     isLive: Boolean = true,
     isCasting: Boolean = false,
     castDeviceName: String? = null,
+    currentPositionProvider: (() -> Long)? = null,
+    durationMs: Long = 0L,
+    onSeek: ((Long) -> Unit)? = null,
     onPlayPauseClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -79,13 +87,35 @@ fun MiniPlayer(
         else -> stationName
     }
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    val seekable = !isLive && durationMs > 0
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        if (seekable) {
+            val currentMs = currentPositionProvider?.invoke() ?: 0L
+            val progress = (currentMs.toFloat() / durationMs).coerceIn(0f, 1f)
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .pointerInput(seekable, durationMs) {
+                        detectTapGestures { offset ->
+                            val fraction = (offset.x / size.width).coerceIn(0f, 1f)
+                            onSeek?.invoke((fraction * durationMs).toLong())
+                        }
+                    },
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
         AnimatedContent(
             targetState = artworkUrl ?: if (liveScore != null) "logos:$hTeam|$aTeam" else "station",
             transitionSpec = { fadeIn() togetherWith fadeOut() },
@@ -141,4 +171,5 @@ fun MiniPlayer(
             }
         }
     }
+}
 }

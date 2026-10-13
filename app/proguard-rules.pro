@@ -34,3 +34,6 @@
 -keep @kotlinx.serialization.Serializable class * {
     *;
 }
+
+# Ignore missing Java management classes referenced by Ktor on Android
+-dontwarn java.lang.management.**

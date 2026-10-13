@@ -12,6 +12,9 @@ object Config {
     const val hideNextPreviousButtons = false
     const val enableSearch = true // Toggle to show/hide search bar on the Stations Screen
 
+    const val userAgent = "FootyRadio - contact@campbellsmith.me"
+    const val fallbackUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+
     const val email = "contact@campbellsmith.me"
     const val feedbackURL = "https://github.com/markcs/Footy-Radio/issues"
     const val licenseURL = "https://github.com/markcs/Footy-Radio/blob/main/LICENSE"

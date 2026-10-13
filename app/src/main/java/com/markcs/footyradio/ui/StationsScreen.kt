@@ -66,6 +66,7 @@ import coil3.request.crossfade
 import com.markcs.footyradio.Config
 import com.markcs.footyradio.R
 import com.markcs.footyradio.data.RadioStation
+import com.markcs.footyradio.ui.components.ArtworkPlaybackOverlay
 import com.markcs.footyradio.ui.components.EqualizerAnimation
 import com.markcs.footyradio.ui.components.GradientBackground
 import com.markcs.footyradio.ui.theme.SubtitleGray
@@ -276,26 +277,11 @@ private fun StationRow(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Buffering overlay on artwork
-                Crossfade(
-                    targetState = isBuffering,
-                    label = "bufferingOverlay"
-                ) { buffering ->
-                    if (buffering) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.5f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(
-                                color = Color.White,
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
-                            )
-                        }
-                    }
-                }
+                ArtworkPlaybackOverlay(
+                    isBuffering = isBuffering,
+                    isCurrent = isCurrentStation,
+                    isPlaying = isPlaying
+                )
             }
 
             Spacer(modifier = Modifier.width(14.dp))

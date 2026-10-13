@@ -224,10 +224,12 @@ class PlayerViewModel(
             getApplication(),
             ComponentName(getApplication(), AudioService::class.java)
         )
-        controllerFuture = MediaController.Builder(getApplication(), sessionToken).buildAsync()
-        controllerFuture.addListener({
+        val future = MediaController.Builder(getApplication(), sessionToken).buildAsync()
+        controllerFuture = future
+        future.addListener({
+            if (future !== controllerFuture) return@addListener
             try {
-                val ctrl = controllerFuture.get()
+                val ctrl = future.get()
                 controller = ctrl
                 ctrl.addListener(playerListener)
                 lastKnownMetadata = mergeTrackMetadata(ctrl.mediaMetadata, ctrl.playlistMetadata)

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -30,9 +32,32 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    val keystorePropertiesFile = rootProject.file("keystore.properties")
+    val keystoreProperties = Properties()
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+    }
+
+    signingConfigs {
+        create("release") {
+            val kFile = keystoreProperties["KEYSTORE_FILE"] as String? ?: System.getenv("KEYSTORE_FILE")
+            val kPass = keystoreProperties["KEYSTORE_PASSWORD"] as String? ?: System.getenv("KEYSTORE_PASSWORD")
+            val kAlias = keystoreProperties["KEY_ALIAS"] as String? ?: System.getenv("KEY_ALIAS")
+            val kKeyPass = keystoreProperties["KEY_PASSWORD"] as String? ?: System.getenv("KEY_PASSWORD")
+
+            if (kFile != null && kPass != null && kAlias != null && kKeyPass != null) {
+                storeFile = file(kFile)
+                storePassword = kPass
+                keyAlias = kAlias
+                keyPassword = kKeyPass
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

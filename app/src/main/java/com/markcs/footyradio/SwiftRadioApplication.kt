@@ -21,6 +21,27 @@ class SwiftRadioApplication : Application(), SingletonImageLoader.Factory {
         OkHttpClient.Builder()
             .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
             .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+            .addInterceptor { chain ->
+                val originalRequest = chain.request()
+                val requestWithUserAgent = if (originalRequest.header("User-Agent") == null) {
+                    originalRequest.newBuilder()
+                        .header("User-Agent", Config.userAgent)
+                        .build()
+                } else {
+                    originalRequest
+                }
+
+                val response = chain.proceed(requestWithUserAgent)
+                if (response.code == 403) {
+                    response.close()
+                    val fallbackRequest = originalRequest.newBuilder()
+                        .header("User-Agent", Config.fallbackUserAgent)
+                        .build()
+                    chain.proceed(fallbackRequest)
+                } else {
+                    response
+                }
+            }
             .build()
     }
 

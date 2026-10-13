@@ -160,7 +160,7 @@ class SquiggleService(
             socketTimeoutMillis = Long.MAX_VALUE
         }
         defaultRequest {
-            header(HttpHeaders.UserAgent, "SwiftRadioAndroid - contact@campbellsmith.me")
+            header(HttpHeaders.UserAgent, com.markcs.footyradio.Config.userAgent)
         }
     }
 

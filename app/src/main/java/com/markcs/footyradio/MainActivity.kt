@@ -196,6 +196,9 @@ class MainActivity : AppCompatActivity() {
                                         castDeviceName = state.castDeviceName,
                                         hTeam = state.liveScoreHTeam,
                                         aTeam = state.liveScoreATeam,
+                                        currentPositionProvider = { vm.currentPositionMs },
+                                        durationMs = state.durationMs,
+                                        onSeek = { vm.seekTo(it) },
                                         onPlayPauseClick = { vm.togglePlayPause() }
                                     )
                                 }

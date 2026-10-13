@@ -79,6 +79,8 @@ class AudioService : MediaLibraryService() {
     private var bufferingRecoveryJob: Job? = null
     private var castBufferingRecoveryJob: Job? = null
     private var stallRecoveryJob: Job? = null
+    private var ladderResetJob: Job? = null
+    private var recoveryStopInProgress = false
     
     private var currentStreamIndex = 0
 
@@ -132,28 +134,26 @@ class AudioService : MediaLibraryService() {
 
     private val playerListener = object : Player.Listener {
         override fun onMetadata(metadata: Metadata) {
-            serviceScope.launch(Dispatchers.Default) {
-                var updated = false
-                
-                // 1. Check for ICY
-                val icyTitle = extractIcyTitle(metadata)
-                if (icyTitle != null) {
-                    currentIcyTitle = icyTitle
-                    updated = true
-                }
-                
-                // 2. Check for ID3 or HLS Timed Metadata
-                val timedMeta = parseTimedMetadata(metadata)
-                if (timedMeta != null) {
-                    // We store this as currentManifestMetadata for the unified priority logic
-                    // since it's "more fresh" than the actual manifest
-                    currentManifestMetadata = timedMeta
-                    updated = true
-                }
-                
-                if (updated) {
-                    updateDisplayMetadata()
-                }
+            var updated = false
+            
+            // 1. Check for ICY
+            val icyTitle = extractIcyTitle(metadata)
+            if (icyTitle != null) {
+                currentIcyTitle = icyTitle
+                updated = true
+            }
+            
+            // 2. Check for ID3 or HLS Timed Metadata
+            val timedMeta = parseTimedMetadata(metadata)
+            if (timedMeta != null) {
+                // We store this as currentManifestMetadata for the unified priority logic
+                // since it's "more fresh" than the actual manifest
+                currentManifestMetadata = timedMeta
+                updated = true
+            }
+            
+            if (updated) {
+                updateDisplayMetadata()
             }
         }
 
@@ -181,6 +181,7 @@ class AudioService : MediaLibraryService() {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             Log.d(TAG, "Svc media item transition reason=$reason uri='${mediaItem?.localConfiguration?.uri}'")
             cancelRetry()
+            cancelLadderReset()
             retryCount = 0
             currentStreamIndex = 0
             castingStreamIndex = 0
@@ -200,7 +201,13 @@ class AudioService : MediaLibraryService() {
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            Log.e(TAG, "Svc player error: ${error.errorCodeName} ${error.message}", error)
+            Log.e(TAG, "Svc player error: ${error.errorCodeName} (${error.errorCode}) ${error.message}", error)
+            val httpStatus = (error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode
+            if (com.markcs.footyradio.data.PlaybackRetryPolicy.isPermanentFailure(error.errorCode, httpStatus)) {
+                Log.w(TAG, "Svc permanent error detected (code=${error.errorCode}, httpStatus=$httpStatus) - skipping retry")
+                suppressPlayerError = false
+                return
+            }
             retryCurrentItem("player_error")
         }
 
@@ -216,27 +223,21 @@ class AudioService : MediaLibraryService() {
             
             when (playbackState) {
                 Player.STATE_READY -> {
-                    retryCount = 0
                     suppressPlayerError = false
                     cancelBufferingRecovery()
                     cancelCastBufferingRecovery()
                     castBufferingStartMs = -1L
-                    // If we reach READY while casting and playWhenReady is false, the user
-                    // explicitly stopped — record that so switchToLocalPlayer doesn't auto-resume.
                     if (isCasting() && player?.playWhenReady == false) {
                         userStoppedWhileCasting = true
                     } else if (isCasting() && player?.playWhenReady == true) {
                         userStoppedWhileCasting = false
                     }
                     startStallRecovery()
+                    scheduleLadderReset()
                 }
                 Player.STATE_BUFFERING -> {
                     suppressPlayerError = false
                     if (isCasting()) {
-                        // Record the very first time we enter BUFFERING for this cast stream.
-                        // We intentionally do NOT reschedule on repeated BUFFERING events —
-                        // the watchdog uses the original start time so transient IDLE→BUFFERING
-                        // cycles don't reset the 35s clock.
                         if (castBufferingStartMs < 0L) {
                             castBufferingStartMs = SystemClock.elapsedRealtime()
                             Log.d(TAG, "Svc cast buffering watchdog armed at t=0")
@@ -253,13 +254,20 @@ class AudioService : MediaLibraryService() {
                 Player.STATE_IDLE -> {
                     cancelBufferingRecovery()
                     cancelStallRecovery()
-                    // Only cancel the cast buffering watchdog if we are genuinely NOT casting
-                    // (e.g. user stopped playback, or we switched back to local).
-                    // While casting, the CastPlayer regularly bounces through IDLE during HLS
-                    // playlist negotiation — cancelling here would disarm the watchdog prematurely.
                     if (!isCasting()) {
                         cancelCastBufferingRecovery()
                         castBufferingStartMs = -1L
+                    }
+                    val errorReported = player?.playerError != null
+                    if (com.markcs.footyradio.data.PlaybackRetryPolicy.shouldRecoverFromIdle(
+                            playWhenReady = player?.playWhenReady == true,
+                            recoveryStopInProgress = recoveryStopInProgress,
+                            errorReported = errorReported
+                        )
+                    ) {
+                        retryCurrentItem("state_idle")
+                    } else {
+                        Log.d(TAG, "Svc idle not a failure recoveryStop=$recoveryStopInProgress error=$errorReported playWhenReady=${player?.playWhenReady}")
                     }
                 }
             }
@@ -273,6 +281,13 @@ class AudioService : MediaLibraryService() {
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             if (playWhenReady) startStallRecovery() else cancelStallRecovery()
+            if (com.markcs.footyradio.data.PlaybackRetryPolicy.shouldCancelRecoveryOnPlayWhenReady(playWhenReady, reason) &&
+                retryJob?.isActive == true
+            ) {
+                Log.d(TAG, "Svc pause cancels pending recovery reason=$reason")
+                cancelRetry()
+                suppressPlayerError = false
+            }
         }
     }
 
@@ -608,7 +623,7 @@ class AudioService : MediaLibraryService() {
         
         // Use OkHttp for better connection pooling and HLS stability
         val httpDataSourceFactory = OkHttpDataSource.Factory(app.sharedOkHttpClient)
-            .setUserAgent("SwiftRadioAndroid - contact@campbellsmith.me")
+            .setUserAgent(Config.userAgent)
 
         val dataSourceFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
         
@@ -1349,11 +1364,7 @@ class AudioService : MediaLibraryService() {
         }
         
         retryCount += 1
-        val delayMs = when {
-            retryCount <= 1 -> 3000L 
-            retryCount <= 2 -> 5000L
-            else -> 10000L
-        }
+        val delayMs = com.markcs.footyradio.data.PlaybackRetryPolicy.retryDelayMs(retryCount)
 
         Log.d(TAG, "Svc retrying current item reason=$reason count=$retryCount delay=${delayMs}ms")
         performLocalRetry(currentItem, delayMs)
@@ -1396,21 +1407,19 @@ class AudioService : MediaLibraryService() {
         cancelRetry()
         retryJob = serviceScope.launch {
             if (isFallback) {
-                // For fallback streams we MUST NOT release the player or call stop() — both
-                // transition to STATE_IDLE which Android Auto interprets as the session ending,
-                // causing it to navigate away from the now-playing screen.
-                // After a player error, ExoPlayer accepts setMediaItem directly without stop().
                 delay(delayMs)
                 val activePlayer = player ?: return@launch
                 activePlayer.setMediaItem(mediaItem)
                 activePlayer.prepare()
                 activePlayer.play()
             } else {
-                // Standard retry path: full player teardown and rebuild.
+                recoveryStopInProgress = true
                 try {
                     player?.release()
                 } catch (e: Exception) {
                     Log.e(TAG, "Error releasing player during retry", e)
+                } finally {
+                    recoveryStopInProgress = false
                 }
                 player = null
                 basePlayer = null
@@ -1430,6 +1439,27 @@ class AudioService : MediaLibraryService() {
     private fun cancelRetry() {
         retryJob?.cancel()
         retryJob = null
+        cancelLadderReset()
+    }
+
+    private fun scheduleLadderReset() {
+        if (retryCount == 0) return
+        cancelLadderReset()
+        ladderResetJob = serviceScope.launch {
+            val startedAtMs = SystemClock.elapsedRealtime()
+            delay(com.markcs.footyradio.data.PlaybackRetryPolicy.STABLE_PLAYBACK_MS)
+            val activePlayer = player ?: return@launch
+            val playedMs = SystemClock.elapsedRealtime() - startedAtMs
+            if (activePlayer.isPlaying && com.markcs.footyradio.data.PlaybackRetryPolicy.shouldResetLadder(playedMs)) {
+                Log.d(TAG, "Svc playback stable for ${playedMs}ms - resetting retry ladder")
+                retryCount = 0
+            }
+        }
+    }
+
+    private fun cancelLadderReset() {
+        ladderResetJob?.cancel()
+        ladderResetJob = null
     }
 
     private fun scheduleBufferingRecovery() {

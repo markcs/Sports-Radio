@@ -8,8 +8,8 @@ class RadioStationTest {
 
     @Test
     fun testStationUniqueness() {
-        val s1 = RadioStation(name = "3AW", streamURL = "url1", imageURL = "", desc = "")
-        val s2 = RadioStation(name = "3AW", streamURL = "url1", imageURL = "", desc = "")
+        val s1 = RadioStation(name = "3AW", streamURLs = listOf("url1"), imageURL = "", desc = "")
+        val s2 = RadioStation(name = "3AW", streamURLs = listOf("url1"), imageURL = "", desc = "")
         
         // Before repository processing, they might have same (empty) ID
         assertEquals(s1.id, s2.id)

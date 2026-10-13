@@ -15,3 +15,7 @@
 local.properties
 PLAN.md
 .antigravitycli/
+*.jks
+*.keystore
+keystore.properties
+
