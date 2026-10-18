@@ -83,6 +83,8 @@ class AudioService : MediaLibraryService() {
     private var recoveryStopInProgress = false
     
     private var currentStreamIndex = 0
+    private var currentPlayingMediaId: String? = null
+    private var isFallbackTransitionInProgress = false
 
     private var currentLiveScore: LiveScoreState? = null
     private var currentIcyTitle: String? = null
@@ -130,6 +132,25 @@ class AudioService : MediaLibraryService() {
         private const val ROOT_ID = "/"
         private const val TAG = "AudioService"
         private const val CAST_BUFFERING_TIMEOUT = 12_000L
+
+        /**
+         * Infers the correct MIME type for a stream URL, preferring a resolved Content-Type header
+         * when available, then falling back to URL heuristics.
+         *
+         * Note: for AAC streams we return the literal "audio/aac" rather than MimeTypes.AUDIO_AAC
+         * (which resolves to "audio/mp4a-latm"). Chromecast's default receiver rejects mp4a-latm for
+         * raw AAC+/HE-AAC streams with "Invalid Request", whereas "audio/aac" routes correctly.
+         * ExoPlayer likewise handles "audio/aac" fine for local playback.
+         */
+        internal fun inferMimeType(url: String, resolvedContentType: String? = null): String? = when {
+            resolvedContentType?.contains("mpegurl", ignoreCase = true) == true -> MimeTypes.APPLICATION_M3U8
+            url.contains(".m3u8") || url.contains(".m3u") || url.contains(".am3u8") -> MimeTypes.APPLICATION_M3U8
+            resolvedContentType?.contains("mpeg", ignoreCase = true) == true -> MimeTypes.AUDIO_MPEG
+            url.contains(".mp3") || url.contains("/mp3") || url.endsWith(";") -> MimeTypes.AUDIO_MPEG
+            resolvedContentType?.contains("aac", ignoreCase = true) == true -> "audio/aac"
+            url.contains(".aac") -> "audio/aac"
+            else -> null
+        }
     }
 
     private val playerListener = object : Player.Listener {
@@ -182,9 +203,22 @@ class AudioService : MediaLibraryService() {
             Log.d(TAG, "Svc media item transition reason=$reason uri='${mediaItem?.localConfiguration?.uri}'")
             cancelRetry()
             cancelLadderReset()
-            retryCount = 0
-            currentStreamIndex = 0
-            castingStreamIndex = 0
+
+            val isFallback = isFallbackTransitionInProgress
+            isFallbackTransitionInProgress = false
+
+            val station = mediaItem?.let { getStationForMediaItem(it) }
+            val isSameStation = mediaItem?.mediaId != null && mediaItem.mediaId == currentPlayingMediaId
+            val isPrimaryStream = mediaItem?.localConfiguration?.uri?.toString() == station?.streamURLs?.firstOrNull()
+
+            currentPlayingMediaId = mediaItem?.mediaId
+
+            if (!isFallback && (!isSameStation || isPrimaryStream)) {
+                retryCount = 0
+                currentStreamIndex = 0
+                castingStreamIndex = 0
+            }
+
             castBufferingStartMs = -1L
             currentIcyTitle = null
             currentManifestMetadata = null
@@ -203,7 +237,8 @@ class AudioService : MediaLibraryService() {
         override fun onPlayerError(error: PlaybackException) {
             Log.e(TAG, "Svc player error: ${error.errorCodeName} (${error.errorCode}) ${error.message}", error)
             val httpStatus = (error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode
-            if (com.markcs.footyradio.data.PlaybackRetryPolicy.isPermanentFailure(error.errorCode, httpStatus)) {
+            val hasFallback = hasFallbackStream()
+            if (!hasFallback && com.markcs.footyradio.data.PlaybackRetryPolicy.isPermanentFailure(error.errorCode, httpStatus)) {
                 Log.w(TAG, "Svc permanent error detected (code=${error.errorCode}, httpStatus=$httpStatus) - skipping retry")
                 suppressPlayerError = false
                 return
@@ -258,7 +293,7 @@ class AudioService : MediaLibraryService() {
                         cancelCastBufferingRecovery()
                         castBufferingStartMs = -1L
                     }
-                    val errorReported = player?.playerError != null
+                    val errorReported = basePlayer?.playerError != null || suppressPlayerError || retryJob?.isActive == true
                     if (com.markcs.footyradio.data.PlaybackRetryPolicy.shouldRecoverFromIdle(
                             playWhenReady = player?.playWhenReady == true,
                             recoveryStopInProgress = recoveryStopInProgress,
@@ -1055,12 +1090,18 @@ class AudioService : MediaLibraryService() {
                 
             applyArtworkToMetadata(station.resolvedImageUrl, metadataBuilder)
 
-            playableItems.add(MediaItem.Builder()
+            val mimeType = inferMimeType(station.streamURL, resolvedContentType = null)
+
+            val itemBuilder = MediaItem.Builder()
                 .setMediaId("station_$index")
                 .setUri(station.streamURL)
-                .setMimeType(MimeTypes.APPLICATION_M3U8) // Enforce HLS MIME type
                 .setMediaMetadata(metadataBuilder.build())
-                .build())
+
+            if (mimeType != null) {
+                itemBuilder.setMimeType(mimeType)
+            }
+
+            playableItems.add(itemBuilder.build())
         }
 
         return playableItems.subList(selectedIndex, playableItems.size) +
@@ -1307,6 +1348,16 @@ class AudioService : MediaLibraryService() {
         return player is MetadataForwardingPlayer && (player as MetadataForwardingPlayer).isCasting()
     }
 
+    private fun hasFallbackStream(): Boolean {
+        val currentItem: MediaItem = basePlayer?.currentMediaItem
+            ?: player?.currentMediaItem
+            ?: (if (isCasting()) lastPlayedMediaItem else null)
+            ?: return false
+        val station = getStationForMediaItem(currentItem) ?: return false
+        val activeIndex = if (isCasting()) castingStreamIndex else currentStreamIndex
+        return activeIndex < station.streamURLs.size - 1
+    }
+
     private fun retryCurrentItem(reason: String) {
         // When casting, CastPlayer.currentMediaItem can return null if the remote receiver
         // hasn't acknowledged the item yet (common during HLS buffering timeouts).
@@ -1338,9 +1389,11 @@ class AudioService : MediaLibraryService() {
                 if (isCasting()) {
                     castingStreamIndex = nextIndex
                     currentStreamIndex = nextIndex
+                    isFallbackTransitionInProgress = true
                     switchToCastPlayer(nextStreamUrl)
                 } else {
                     currentStreamIndex = nextIndex
+                    isFallbackTransitionInProgress = true
                     // Re-derive MIME type from the new URL — do NOT inherit from currentItem,
                     // which may carry the previous stream's MIME (e.g. application/x-mpegURL)
                     // that would cause ExoPlayer to misparse the fallback stream entirely.
@@ -1384,24 +1437,6 @@ class AudioService : MediaLibraryService() {
         return if (!stationName.isNullOrBlank()) stations.firstOrNull { it.name == stationName } else null
     }
 
-    /**
-     * Infers the correct MIME type for a stream URL, preferring a resolved Content-Type header
-     * when available, then falling back to URL heuristics.
-     *
-     * Note: for AAC streams we return the literal "audio/aac" rather than MimeTypes.AUDIO_AAC
-     * (which resolves to "audio/mp4a-latm"). Chromecast's default receiver rejects mp4a-latm for
-     * raw AAC+/HE-AAC streams with "Invalid Request", whereas "audio/aac" routes correctly.
-     * ExoPlayer likewise handles "audio/aac" fine for local playback.
-     */
-    private fun inferMimeType(url: String, resolvedContentType: String?): String? = when {
-        resolvedContentType?.contains("mpegurl", ignoreCase = true) == true -> MimeTypes.APPLICATION_M3U8
-        url.contains(".m3u8") || url.contains(".m3u") || url.contains(".am3u8") -> MimeTypes.APPLICATION_M3U8
-        resolvedContentType?.contains("mpeg", ignoreCase = true) == true -> MimeTypes.AUDIO_MPEG
-        url.contains(".mp3") || url.contains("/mp3") || url.endsWith(";") -> MimeTypes.AUDIO_MPEG
-        resolvedContentType?.contains("aac", ignoreCase = true) == true -> "audio/aac"
-        url.contains(".aac") -> "audio/aac"
-        else -> null
-    }
 
     private fun performLocalRetry(mediaItem: MediaItem, delayMs: Long, isFallback: Boolean = false) {
         cancelRetry()
