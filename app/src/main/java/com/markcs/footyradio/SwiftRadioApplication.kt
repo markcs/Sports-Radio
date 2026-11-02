@@ -17,7 +17,6 @@ import com.markcs.footyradio.scores.mock.MockScoreProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
 import okhttp3.OkHttpClient
 
 class SwiftRadioApplication : Application(), SingletonImageLoader.Factory {
@@ -83,7 +82,7 @@ class SwiftRadioApplication : Application(), SingletonImageLoader.Factory {
         }
         SportsScoreManager(
             providers = mapOf(provider.sportId to provider),
-            selectedSportId = MutableStateFlow(provider.sportId),
+            prefs = getSharedPreferences("footy_radio_prefs", MODE_PRIVATE),
             scope = applicationScope,
         )
     }

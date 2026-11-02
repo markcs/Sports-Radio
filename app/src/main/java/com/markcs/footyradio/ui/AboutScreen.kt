@@ -44,6 +44,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -79,6 +80,7 @@ import coil3.compose.AsyncImage
 import com.markcs.footyradio.Config
 import com.markcs.footyradio.PlayerViewModel
 import com.markcs.footyradio.R
+import com.markcs.footyradio.scores.SportsScoreManager
 import com.markcs.footyradio.ui.theme.SubtitleGray
 import java.util.Calendar
 
@@ -99,6 +101,7 @@ fun AboutScreen(
     }
 
     var stationsUrl by remember { mutableStateOf(viewModel.getStationsUrl()) }
+    var selectedSport by remember { mutableStateOf(viewModel.selectedSportId()) }
     var teamsUrl by remember { mutableStateOf(viewModel.getTeamsUrl()) }
     val state = viewModel.uiState
     var newStationName by remember { mutableStateOf("") }
@@ -174,6 +177,29 @@ fun AboutScreen(
                             checked = state.enableTeamAbbreviations,
                             onCheckedChange = { viewModel.setTeamAbbreviationsEnabled(it) }
                         )
+                    }
+                }
+            }
+
+            // Live Scores
+            SectionHeader(stringResource(R.string.about_section_live_scores))
+            SectionCard {
+                val options = listOf(SportsScoreManager.NONE to stringResource(R.string.about_sport_off)) +
+                    viewModel.availableSports()
+                options.forEach { (id, label) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.setSelectedSportId(id)
+                                selectedSport = id
+                            }
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = selectedSport == id, onClick = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = label, style = MaterialTheme.typography.bodyLarge)
                     }
                 }
             }

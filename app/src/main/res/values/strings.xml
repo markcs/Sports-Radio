@@ -73,6 +73,10 @@
     <string name="about_teams_url">Custom Teams JSON URL</string>
     <string name="about_teams_url_hint">Enter Teams JSON URL</string>
 
+    <!-- About Screen - Live Scores -->
+    <string name="about_section_live_scores">Live Scores</string>
+    <string name="about_sport_off">Off</string>
+
     <!-- About Screen - Custom Stations -->
     <string name="about_section_custom_stations">My Custom Stations</string>
     <string name="about_add_station">Add New Station</string>
