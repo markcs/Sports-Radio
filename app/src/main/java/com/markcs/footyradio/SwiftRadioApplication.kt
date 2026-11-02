@@ -7,9 +7,14 @@ import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.markcs.footyradio.data.ArtworkService
 import com.markcs.footyradio.data.StationsRepository
+import com.markcs.footyradio.scores.SportsScoreManager
+import com.markcs.footyradio.scores.afl.SquiggleAflProvider
+import com.markcs.footyradio.scores.afl.SquiggleKtorApi
+import com.markcs.footyradio.scores.afl.SystemScoreClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 import okhttp3.OkHttpClient
 
 class SwiftRadioApplication : Application(), SingletonImageLoader.Factory {
@@ -57,8 +62,18 @@ class SwiftRadioApplication : Application(), SingletonImageLoader.Factory {
         ArtworkService(sharedOkHttpClient)
     }
 
-    val squiggleService: com.markcs.footyradio.data.SquiggleService by lazy {
-        com.markcs.footyradio.data.SquiggleService(sharedOkHttpClient, applicationScope)
+    val sportsScoreManager: SportsScoreManager by lazy {
+        val afl = SquiggleAflProvider(
+            api = SquiggleKtorApi(sharedOkHttpClient),
+            clock = SystemScoreClock,
+            shortNames = teamsRepository.teamsMap,
+            scope = applicationScope,
+        )
+        SportsScoreManager(
+            providers = mapOf(afl.sportId to afl),
+            selectedSportId = MutableStateFlow(afl.sportId),
+            scope = applicationScope,
+        )
     }
 
     override fun onCreate() {

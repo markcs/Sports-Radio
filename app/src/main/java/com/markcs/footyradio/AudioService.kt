@@ -43,7 +43,7 @@ import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import com.markcs.footyradio.data.RadioStation
 import com.markcs.footyradio.data.StationsRepository
-import com.markcs.footyradio.data.SquiggleService
+import com.markcs.footyradio.scores.format.ScoreTickerFormatter
 import com.markcs.footyradio.data.LiveScoreState
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
@@ -90,7 +90,7 @@ class AudioService : MediaLibraryService() {
     private var currentIcyTitle: String? = null
     private var currentManifestMetadata: MediaMetadata? = null
     
-    private var squiggleJob: Job? = null
+    private var liveScoreJob: Job? = null
     private var artworkFetchJob: Job? = null
     private var lastArtworkLookupTerm: String? = null
     private var currentSongArtworkUrl: String? = null
@@ -326,17 +326,27 @@ class AudioService : MediaLibraryService() {
         }
     }
 
-    private fun startSquigglePolling() {
-        if (squiggleJob?.isActive == true) return
-        squiggleJob = serviceScope.launch {
+    /**
+     * Collects the shared score snapshot while at least one media controller is connected.
+     * The provider itself starts its connection only while this collector (or the UI's) is active.
+     */
+    private fun startLiveScores() {
+        if (liveScoreJob?.isActive == true) return
+        liveScoreJob = serviceScope.launch {
             val app = application as SwiftRadioApplication
-            app.squiggleService.getLiveScoreFlow(
-                app.teamsRepository.teamsMap,
-                kotlinx.coroutines.flow.flow {
-                    val prefs = getSharedPreferences("footy_radio_prefs", MODE_PRIVATE)
-                    emit(prefs.getBoolean("enable_team_abbreviations", Config.enableTeamAbbreviations))
+            app.sportsScoreManager.snapshot.collect { snapshot ->
+                val abbreviated = getSharedPreferences("footy_radio_prefs", MODE_PRIVATE)
+                    .getBoolean("enable_team_abbreviations", Config.enableTeamAbbreviations)
+                val primary = snapshot?.primary
+                val score = if (snapshot != null && primary != null) {
+                    LiveScoreState(
+                        scoreText = ScoreTickerFormatter.format(snapshot, abbreviated).orEmpty(),
+                        hTeam = primary.home.name,
+                        aTeam = primary.away.name,
+                    )
+                } else {
+                    null
                 }
-            ).collect { score ->
                 if (currentLiveScore != score) {
                     currentLiveScore = score
                     updateDisplayMetadata()
@@ -345,9 +355,9 @@ class AudioService : MediaLibraryService() {
         }
     }
 
-    private fun stopSquigglePolling() {
-        squiggleJob?.cancel()
-        squiggleJob = null
+    private fun stopLiveScores() {
+        liveScoreJob?.cancel()
+        liveScoreJob = null
     }
 
     private var controllerCount = 0
@@ -359,10 +369,7 @@ class AudioService : MediaLibraryService() {
             controller: MediaSession.ControllerInfo
         ): MediaSession.ConnectionResult {
             controllerCount++
-            serviceScope.launch {
-                (application as SwiftRadioApplication).squiggleService.incrementActiveScreens()
-                startSquigglePolling()
-            }
+            startLiveScores()
             // Allow all controllers and include library commands
             val connectionResult = super.onConnect(session, controller)
             val availableSessionCommands = connectionResult.availableSessionCommands.buildUpon()
@@ -381,11 +388,8 @@ class AudioService : MediaLibraryService() {
 
         override fun onDisconnected(session: MediaSession, controller: MediaSession.ControllerInfo) {
             controllerCount = (controllerCount - 1).coerceAtLeast(0)
-            serviceScope.launch {
-                (application as SwiftRadioApplication).squiggleService.decrementActiveScreens()
-                if (controllerCount == 0) {
-                    stopSquigglePolling()
-                }
+            if (controllerCount == 0) {
+                stopLiveScores()
             }
             super.onDisconnected(session, controller)
         }
@@ -983,7 +987,7 @@ class AudioService : MediaLibraryService() {
         cancelBufferingRecovery()
         cancelCastBufferingRecovery()
         cancelStallRecovery()
-        stopSquigglePolling()
+        stopLiveScores()
         player = null
         basePlayer = null
         mediaSession = null

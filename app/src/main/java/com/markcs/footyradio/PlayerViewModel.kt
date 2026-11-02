@@ -26,10 +26,13 @@ import com.google.android.gms.cast.framework.SessionManagerListener
 import com.markcs.footyradio.data.ArtworkService
 import com.markcs.footyradio.data.RadioStation
 import com.markcs.footyradio.data.StationsRepository
+import com.markcs.footyradio.scores.SportsScoreManager
+import com.markcs.footyradio.scores.format.ScoreTickerFormatter
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -72,7 +75,7 @@ class PlayerViewModel(
     private val stationsRepository: StationsRepository,
     private val teamsRepository: com.markcs.footyradio.data.TeamsRepository,
     private val artworkService: ArtworkService,
-    private val squiggleService: com.markcs.footyradio.data.SquiggleService
+    private val sportsScoreManager: SportsScoreManager
 ) : AndroidViewModel(application) {
 
     var uiState by mutableStateOf(PlayerUiState())
@@ -101,7 +104,6 @@ class PlayerViewModel(
     private var artworkLookupJob: Job? = null
     private var lastObservedMediaId: String? = null
     private var positionPollingJob: Job? = null
-    private var squiggleJob: Job? = null
     private var lastKnownMetadata: MediaMetadata = MediaMetadata.Builder().build()
     // Set true when the user explicitly stops playback. Cleared on the next explicit play.
     // Prevents the CastPlayer's post-stop IDLE(playWhenReady=true) from showing as buffering.
@@ -187,7 +189,7 @@ class PlayerViewModel(
         uiState = uiState.copy(enableTeamAbbreviations = teamsRepository.isTeamAbbreviationsEnabled())
         observeRawState()
         loadStations()
-        startSquigglePolling()
+        observeLiveScores()
         castContext?.sessionManager?.addSessionManagerListener(sessionManagerListener, CastSession::class.java)
     }
 
@@ -268,7 +270,6 @@ class PlayerViewModel(
         resetTrackInfo()
         uiState = uiState.copy(currentStation = station)
         stationMediaItems = buildMediaItems(uiState.stations)
-        startSquigglePolling()
         withController { ctrl ->
             lastKnownMetadata = stationMediaItems[stationIndex].mediaMetadata
             ctrl.setMediaItems(stationMediaItems, stationIndex, 0)
@@ -421,18 +422,18 @@ class PlayerViewModel(
         }
     }
 
-    private fun startSquigglePolling() {
-        if (squiggleJob?.isActive == true) return
-        squiggleJob = viewModelScope.launch {
-            squiggleService.getLiveScoreFlow(
-                teamsRepository.teamsMap,
-                _enableTeamAbbreviations
-            ).collect { score ->
-                if (uiState.liveScore != score?.scoreText) {
+    private fun observeLiveScores() {
+        viewModelScope.launch {
+            combine(sportsScoreManager.snapshot, _enableTeamAbbreviations) { snapshot, abbreviated ->
+                snapshot to abbreviated
+            }.collect { (snapshot, abbreviated) ->
+                val primary = snapshot?.primary
+                val text = ScoreTickerFormatter.format(snapshot, abbreviated)
+                if (uiState.liveScore != text) {
                     uiState = uiState.copy(
-                        liveScore = score?.scoreText,
-                        liveScoreHTeam = score?.hTeam,
-                        liveScoreATeam = score?.aTeam
+                        liveScore = text,
+                        liveScoreHTeam = primary?.home?.name,
+                        liveScoreATeam = primary?.away?.name
                     )
                 }
             }
@@ -761,7 +762,7 @@ class PlayerViewModel(
                     application.stationsRepository,
                     application.teamsRepository,
                     application.artworkService,
-                    application.squiggleService
+                    application.sportsScoreManager
                 ) as T
             }
         }
