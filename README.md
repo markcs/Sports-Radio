@@ -12,15 +12,21 @@ Forked from [Swift Radio Android](https://github.com/fethica/Swift-Radio-Android
 ## Features
 
 - Stream radio stations with background playback
-- Preloaded with a few Melbourne FM stations
-- Live sports scores on the Now Playing screen:
-  - AFL scores powered by the [Squiggle API](https://squiggle.com.au/) via real-time SSE updates
-  - NBA and Premier League scores powered by the ESPN scoreboard API
-- Team logos displayed alongside live scores
-- Multiple stream URL fallbacks per station for improved reliability
-- Album art and track metadata from streams and the iTunes API
+- Preloaded with a curated selection of Melbourne FM stations
+- Live sports scores on the Now Playing screen, notification media session, and Android Auto:
+  - **AFL (Australian Rules Football)**: powered by the [Squiggle API](https://squiggle.com.au/) via real-time Server-Sent Events (SSE)
+  - **NBA (Basketball)**: powered by the ESPN Scoreboard API with live quarter and clock tracking
+  - **Premier League (English Soccer)**: powered by the ESPN Scoreboard API with match period and clock tracking
+  - **Mock Provider (Debug builds)**: simulated live game progression for layout and UI testing
+- Sport selection in **Settings**: easily switch between sports or disable scores
+- Dynamic team logos supplied directly by each score provider
+- Smart match completion handling: finished NBA and Premier League games cleanly clear 15 minutes after completion
+- Multiple stream URL fallbacks per station for improved playback reliability
+- Album art and track metadata from stream headers and the iTunes API
+- Google Cast (Chromecast) support
 - Android Auto integration with browse tree, playback controls, and artwork
-- Lock screen and notification controls with artwork
+- Lock screen and notification controls with media session artwork
+- Back button navigation returns to the main station list before exiting
 - Search and filter stations by name or description
 - Material You dynamic color support on Android 12+
 - Localization-ready with all strings extracted to resources
@@ -87,11 +93,27 @@ object Config {
 }
 ```
 
-### Live Scores
+### Live Sports Scores
 
-Sports Radio integrates with the [Squiggle API](https://squiggle.com.au/) for AFL and ESPN scoreboard for NBA and Premier League to display live scores on the Now Playing screen. AFL scores update in real time via a Server-Sent Events (SSE) connection that opens automatically around game time and closes when all games for the day are complete.
+Sports Radio features a modular live scores system coordinated by `SportsScoreManager` that supports multiple sports providers:
 
-Team logos for all 18 AFL clubs are bundled in the `team-logos/` directory and are displayed alongside the score ticker.
+| Sport | Provider / API | Updates | Description |
+|---|---|---|---|
+| **AFL** | [Squiggle API](https://squiggle.com.au/) | Real-time SSE | Streams live scores, quarters, and scores ticker. Opens around game time and closes when games end. Team logos for all 18 clubs are included. |
+| **NBA** | ESPN Scoreboard | Polling | Tracks quarter, clock, timeouts, and live scores. Finished games drop off after 15 minutes. High-resolution team logos loaded via ESPN CDN. |
+| **Premier League** | ESPN Scoreboard | Polling | Tracks live match halves, game clock, and scores. Finished fixtures drop off after 15 minutes. Team crests loaded via ESPN CDN. |
+| **Mock (Debug)** | In-memory Generator | Simulated | Generates mock live games for testing tickers, logos, and UI transitions without waiting for live match times. |
+
+Users can choose their active sport in the **Settings** menu. Scores appear in a dedicated ticker banner on the Now Playing screen and are dynamically mirrored to media notification metadata and Android Auto.
+
+### Settings & Navigation
+
+The Settings screen is organized into modular sections:
+- **Sports**: Select which sport to follow live (AFL, NBA, Premier League, None, or Mock in debug builds).
+- **Stations**: Configure custom stations JSON source.
+- **About**: View app version, open-source dependencies, and license information.
+
+Predictive back navigation ensures pressing the back button from player or settings screens returns users to the main stations list before exiting the app.
 
 ### Station Icons
 
@@ -114,13 +136,14 @@ Android will automatically use the correct language based on the user's device s
 | [AndroidX Media3](https://developer.android.com/media/media3) | Audio playback, media session, Android Auto |
 | [Jetpack Compose](https://developer.android.com/compose) | UI framework with Material 3 |
 | [Coil](https://github.com/coil-kt/coil) | Image loading and caching |
-| [Ktor](https://github.com/ktorio/ktor) | HTTP client for remote stations and SSE |
+| [Ktor](https://github.com/ktorio/ktor) | HTTP client for remote stations, ESPN API, and Squiggle SSE |
 | [Kotlinx Serialization](https://github.com/Kotlin/kotlinx.serialization) | JSON parsing |
 
 ## Credits
 
 - Forked from [Swift Radio Android](https://github.com/fethica/Swift-Radio-Android) by [Fethi](https://fethica.com)
 - Live AFL scores via [Squiggle](https://squiggle.com.au/)
+- Live NBA and Premier League scoreboards via [ESPN](https://www.espn.com/)
 
 ## License
 
