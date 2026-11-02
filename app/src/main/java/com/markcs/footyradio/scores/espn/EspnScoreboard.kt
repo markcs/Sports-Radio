@@ -7,6 +7,9 @@ import com.markcs.footyradio.scores.model.TeamRef
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 
 /*
  * DTOs for the ESPN public scoreboard (site.api.espn.com/apis/site/v2/sports/{league}/scoreboard).
@@ -20,6 +23,7 @@ internal data class EspnScoreboard(val events: List<EspnEvent> = emptyList())
 @Serializable
 internal data class EspnEvent(
     val id: String = "",
+    val date: String? = null,             // scheduled start, e.g. "2026-11-02T09:30Z"
     val competitions: List<EspnCompetition> = emptyList(),
     val status: EspnStatus = EspnStatus(),
 )
@@ -57,13 +61,87 @@ internal data class EspnStatusType(
 /** How the period is shown next to the clock. */
 internal enum class EspnClockStyle { PERIOD_AND_CLOCK, CLOCK_ONLY }
 
-/** Maps a scoreboard to the sport-agnostic snapshot. Events without both teams are dropped. */
-internal fun EspnScoreboard.toSnapshot(sportId: String, style: EspnClockStyle): LiveScoreSnapshot {
+/** How long a finished game stays on the ticker. */
+internal const val FINISHED_LINGER_MS = 15 * 60 * 1000L
+
+/**
+ * Maps a scoreboard to the sport-agnostic snapshot. Events without both teams are dropped,
+ * and finished games are dropped once they are more than [FINISHED_LINGER_MS] past their
+ * finish. Live and scheduled games are never dropped here.
+ */
+internal fun EspnScoreboard.toSnapshot(
+    sportId: String,
+    style: EspnClockStyle,
+    tracker: FinishedGameTracker,
+    typicalDurationMs: Long,
+    nowMs: Long,
+): LiveScoreSnapshot {
     val matches = events
-        .mapNotNull { it.toMatch(style) }
+        .mapNotNull { event -> event.toMatch(style)?.let { match -> match to event } }
+        .filter { (match, event) ->
+            tracker.isVisible(match.id, match.status, event.estimatedEndMs(typicalDurationMs), nowMs)
+        }
+        .map { (match, _) -> match }
         .sortedBy { it.status.sortRank() }
+    tracker.retain(events.mapTo(HashSet()) { it.id })
     return LiveScoreSnapshot(sportId = sportId, matches = matches)
 }
+
+/**
+ * Works out when each finished game ended, so the linger window can be enforced.
+ *
+ * If the app saw the game turn final, the finish time is the moment it was seen.
+ * If the game was already final on first sight, the finish time is estimated as
+ * start + typical duration. The estimate is capped at now, so a game that ended
+ * early is not kept alive by its estimate.
+ */
+internal class FinishedGameTracker {
+    private val lastStatus = HashMap<String, MatchStatus>()
+    private val finishedAtMs = HashMap<String, Long>()
+
+    fun isVisible(id: String, status: MatchStatus, estimatedEndMs: Long?, nowMs: Long): Boolean {
+        val previous = lastStatus.put(id, status)
+        if (status != MatchStatus.FINISHED) {
+            finishedAtMs.remove(id)
+            return true
+        }
+        val finishedAt = finishedAtMs.getOrPut(id) {
+            if (previous != null && previous != MatchStatus.FINISHED) {
+                nowMs
+            } else {
+                minOf(estimatedEndMs ?: nowMs, nowMs)
+            }
+        }
+        return nowMs - finishedAt <= FINISHED_LINGER_MS
+    }
+
+    /** Forgets games ESPN no longer returns, so the maps do not grow all day. */
+    fun retain(ids: Set<String>) {
+        lastStatus.keys.retainAll(ids)
+        finishedAtMs.keys.retainAll(ids)
+    }
+}
+
+private fun EspnEvent.estimatedEndMs(typicalDurationMs: Long): Long? =
+    parseEspnDateMs(date)?.let { it + typicalDurationMs }
+
+/** Parses ESPN's UTC timestamps, e.g. "2026-11-02T09:30Z". Minimum API 24 rules out java.time. */
+internal fun parseEspnDateMs(text: String?): Long? {
+    if (text.isNullOrBlank()) return null
+    for (pattern in ESPN_DATE_PATTERNS) {
+        val parsed = try {
+            SimpleDateFormat(pattern, Locale.US)
+                .apply { timeZone = TimeZone.getTimeZone("UTC") }
+                .parse(text)
+        } catch (e: Exception) {
+            null
+        }
+        if (parsed != null) return parsed.time
+    }
+    return null
+}
+
+private val ESPN_DATE_PATTERNS = listOf("yyyy-MM-dd'T'HH:mm'Z'", "yyyy-MM-dd'T'HH:mm:ss'Z'")
 
 private fun EspnEvent.toMatch(style: EspnClockStyle): MatchScore? {
     val competitors = competitions.firstOrNull()?.competitors.orEmpty()

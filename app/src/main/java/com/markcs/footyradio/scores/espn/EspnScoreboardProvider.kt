@@ -20,9 +20,14 @@ internal class EspnScoreboardProvider(
     override val displayName: String,
     private val leaguePath: String,
     private val clockStyle: EspnClockStyle,
+    /** Used to estimate a finish time when the app first sees a game already final. */
+    private val typicalDurationMs: Long,
     private val fetch: suspend (leaguePath: String) -> EspnScoreboard?,
     scope: CoroutineScope,
+    private val nowMs: () -> Long = System::currentTimeMillis,
 ) : SportsScoreProvider {
+
+    private val tracker = FinishedGameTracker()
 
     override val snapshot: StateFlow<LiveScoreSnapshot?> = flow {
         while (true) {
@@ -31,14 +36,20 @@ internal class EspnScoreboardProvider(
                 delay(ERROR_RETRY_MS)
                 continue
             }
-            val snap = board.toSnapshot(sportId, clockStyle)
+            val snap = board.toSnapshot(sportId, clockStyle, tracker, typicalDurationMs, nowMs())
             emit(snap)
-            delay(if (snap.hasLiveGame()) LIVE_POLL_MS else IDLE_POLL_MS)
+            // Poll quickly while games are live, or while a finished game is still in its
+            // linger window, so it is removed on time rather than up to 10 minutes late.
+            delay(if (snap.needsFastPolling()) LIVE_POLL_MS else IDLE_POLL_MS)
         }
     }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), null)
 
-    private fun LiveScoreSnapshot.hasLiveGame(): Boolean =
-        matches.any { it.status == MatchStatus.LIVE || it.status == MatchStatus.PAUSED }
+    private fun LiveScoreSnapshot.needsFastPolling(): Boolean =
+        matches.any {
+            it.status == MatchStatus.LIVE ||
+                it.status == MatchStatus.PAUSED ||
+                it.status == MatchStatus.FINISHED
+        }
 
     private companion object {
         const val LIVE_POLL_MS = 30_000L

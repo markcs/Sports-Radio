@@ -15,9 +15,13 @@ class EspnScoreboardTest {
 
     private fun parse(body: String) = json.decodeFromString(EspnScoreboard.serializer(), body)
 
+    /** Snapshot with a fresh tracker, as on a first poll. */
+    private fun EspnScoreboard.snap(style: EspnClockStyle, nowMs: Long = START + 1_000L) =
+        toSnapshot("nba", style, FinishedGameTracker(), DURATION_MS, nowMs)
+
     @Test
     fun `live game shows quarter and clock, scheduled and final have no clock`() {
-        val snap = parse(FIXTURE).toSnapshot("nba", EspnClockStyle.PERIOD_AND_CLOCK)
+        val snap = parse(FIXTURE).snap(EspnClockStyle.PERIOD_AND_CLOCK)
 
         assertEquals(listOf("401", "402", "403"), snap.matches.map { it.id })
 
@@ -45,7 +49,7 @@ class EspnScoreboardTest {
 
     @Test
     fun `clock-only style shows the bare clock for soccer`() {
-        val live = parse(FIXTURE).toSnapshot("epl", EspnClockStyle.CLOCK_ONLY).matches.first()
+        val live = parse(FIXTURE).snap(EspnClockStyle.CLOCK_ONLY).matches.first()
         assertEquals("2:15", live.clock)
     }
 
@@ -57,18 +61,92 @@ class EspnScoreboardTest {
                 {"homeAway":"home","score":"50","team":{"displayName":"Home","abbreviation":"HOM"}},
                 {"homeAway":"away","score":"48","team":{"displayName":"Away","abbreviation":"AWY"}}]}]}]}
         """.trimIndent()
-        val match = parse(body).toSnapshot("nba", EspnClockStyle.PERIOD_AND_CLOCK).matches.single()
+        val match = parse(body).snap(EspnClockStyle.PERIOD_AND_CLOCK).matches.single()
         assertEquals(MatchStatus.PAUSED, match.status)
         assertEquals("Half", match.clock)
     }
 
     @Test
     fun `empty or unexpected payload gives an empty snapshot`() {
-        assertEquals(emptyList<Any>(), parse("""{"events":[]}""").toSnapshot("nba", EspnClockStyle.PERIOD_AND_CLOCK).matches)
-        assertEquals(emptyList<Any>(), parse("{}").toSnapshot("nba", EspnClockStyle.PERIOD_AND_CLOCK).matches)
+        assertEquals(emptyList<Any>(), parse("""{"events":[]}""").snap(EspnClockStyle.PERIOD_AND_CLOCK).matches)
+        assertEquals(emptyList<Any>(), parse("{}").snap(EspnClockStyle.PERIOD_AND_CLOCK).matches)
     }
 
+    @Test
+    fun `game drops off 15 minutes after the app saw it finish`() {
+        val tracker = FinishedGameTracker()
+        fun at(nowMs: Long, state: String, name: String) = board(event("7", state, name))
+            .toSnapshot("nba", EspnClockStyle.PERIOD_AND_CLOCK, tracker, DURATION_MS, nowMs)
+            .matches.map { it.id }
+
+        assertEquals(listOf("7"), at(START + 1 * HOUR, "in", "STATUS_IN_PROGRESS"))
+        val finish = START + 3 * HOUR
+        assertEquals(listOf("7"), at(finish, "post", "STATUS_FINAL"))
+        assertEquals(listOf("7"), at(finish + 14 * MINUTE, "post", "STATUS_FINAL"))
+        assertEquals(emptyList<String>(), at(finish + 16 * MINUTE, "post", "STATUS_FINAL"))
+    }
+
+    @Test
+    fun `game already final on first sight is dropped once its estimated end plus 15 minutes has passed`() {
+        // Started 4 hours ago. The estimated end is 1 hour ago, so it should be hidden.
+        val stale = board(event("8", "post", "STATUS_FINAL", date = iso(START - 4 * HOUR)))
+            .snap(EspnClockStyle.PERIOD_AND_CLOCK, nowMs = START)
+        assertEquals(emptyList<String>(), stale.matches.map { it.id })
+    }
+
+    @Test
+    fun `estimated finish is capped at now so an early finish is not kept alive`() {
+        // Started 2 hours before now. The estimated end is 1 hour in the future, so it is
+        // capped at now: visible at once, hidden 15 minutes later.
+        val json = board(event("9", "post", "STATUS_FINAL", date = iso(START - 2 * HOUR)))
+        assertEquals(listOf("9"), json.snap(EspnClockStyle.PERIOD_AND_CLOCK, START).matches.map { it.id })
+        assertEquals(
+            emptyList<String>(),
+            json.snap(EspnClockStyle.PERIOD_AND_CLOCK, START + 16 * MINUTE).matches.map { it.id },
+        )
+    }
+
+    @Test
+    fun `live games are never dropped by the linger rule`() {
+        val snap = board(event("5", "in", "STATUS_IN_PROGRESS", date = iso(START - 10 * HOUR)))
+            .snap(EspnClockStyle.PERIOD_AND_CLOCK, nowMs = START + 10 * HOUR)
+        assertEquals(listOf("5"), snap.matches.map { it.id })
+    }
+
+    @Test
+    fun `parses ESPN timestamps with and without seconds`() {
+        assertEquals(START, parseEspnDateMs("2026-11-02T10:00Z"))
+        assertEquals(START, parseEspnDateMs("2026-11-02T10:00:00Z"))
+        assertNull(parseEspnDateMs("not a date"))
+        assertNull(parseEspnDateMs(null))
+    }
+
+    private fun board(vararg events: String) = parse("""{"events":[${events.joinToString(",")}]}""")
+
+    private fun event(
+        id: String,
+        state: String,
+        name: String,
+        date: String = iso(START),
+    ): String = """
+        {"id":"$id","date":"$date",
+         "status":{"period":4,"type":{"state":"$state","name":"$name"}},
+         "competitions":[{"competitors":[
+           {"homeAway":"home","score":"100","team":{"displayName":"Home Team","abbreviation":"HOM"}},
+           {"homeAway":"away","score":"90","team":{"displayName":"Away Team","abbreviation":"AWY"}}
+         ]}]}
+    """.trimIndent()
+
     private companion object {
+        const val MINUTE = 60_000L
+        const val HOUR = 60 * MINUTE
+        const val DURATION_MS = 3 * HOUR
+        val START = parseEspnDateMs("2026-11-02T10:00Z")!!
+
+        fun iso(ms: Long): String = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'", java.util.Locale.US)
+            .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+            .format(java.util.Date(ms))
+
         // Four events. "404" is missing its away team and must be dropped.
         val FIXTURE = """
             {"events":[
