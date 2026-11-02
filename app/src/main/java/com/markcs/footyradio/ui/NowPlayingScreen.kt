@@ -87,8 +87,8 @@ fun NowPlayingScreen(
     artistName: String,
     artworkUrl: String?,
     stationArtworkUrl: String?,
-    hTeam: String? = null,   // ADD
-    aTeam: String? = null,   // ADD
+    homeLogoUrl: String? = null,
+    awayLogoUrl: String? = null,
     liveScore: String? = null,
     isPlaying: Boolean,
     isBuffering: Boolean = false,
@@ -132,15 +132,15 @@ fun NowPlayingScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         // Blurred background artwork with animated transition
         AnimatedContent(
-            targetState = artworkUrl ?: if (liveScore != null) "logos:$hTeam|$aTeam" else "station",
+            targetState = artworkUrl ?: if (liveScore != null) "logos:$homeLogoUrl|$awayLogoUrl" else "station",
             transitionSpec = { fadeIn() togetherWith fadeOut() },
             label = "bgArtwork"
         ) { _ ->
             TeamLogoImage(
                 artworkUrl = artworkUrl,
                 stationArtworkUrl = stationArtworkUrl,
-                hTeam = hTeam,
-                aTeam = aTeam,
+                homeLogoUrl = homeLogoUrl,
+                awayLogoUrl = awayLogoUrl,
                 showLogos = liveScore != null,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
@@ -199,15 +199,15 @@ fun NowPlayingScreen(
                 contentAlignment = Alignment.Center
             ) {
                 AnimatedContent(
-                    targetState = artworkUrl ?: if (liveScore != null) "logos:$hTeam|$aTeam" else "station",
+                    targetState = artworkUrl ?: if (liveScore != null) "logos:$homeLogoUrl|$awayLogoUrl" else "station",
                     transitionSpec = { fadeIn() togetherWith fadeOut() },
                     label = "artwork"
                 ) { _ ->
                     TeamLogoImage(
                         artworkUrl = artworkUrl,
                         stationArtworkUrl = stationArtworkUrl,
-                        hTeam = hTeam,
-                        aTeam = aTeam,
+                        homeLogoUrl = homeLogoUrl,
+                        awayLogoUrl = awayLogoUrl,
                         showLogos = liveScore != null,
                         contentDescription = stationName,
                         contentScale = ContentScale.Crop,

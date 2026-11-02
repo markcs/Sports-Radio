@@ -50,8 +50,8 @@ fun MiniPlayer(
     artistName: String,
     artworkUrl: String?,
     stationArtworkUrl: String?, 
-    hTeam: String?,
-    aTeam: String?,
+    homeLogoUrl: String?,
+    awayLogoUrl: String?,
     liveScore: String? = null,
     isPlaying: Boolean,
     isLive: Boolean = true,
@@ -117,15 +117,15 @@ fun MiniPlayer(
             verticalAlignment = Alignment.CenterVertically
         ) {
         AnimatedContent(
-            targetState = artworkUrl ?: if (liveScore != null) "logos:$hTeam|$aTeam" else "station",
+            targetState = artworkUrl ?: if (liveScore != null) "logos:$homeLogoUrl|$awayLogoUrl" else "station",
             transitionSpec = { fadeIn() togetherWith fadeOut() },
             label = "miniArtwork"
         ) { _ ->
             TeamLogoImage(
                 artworkUrl = artworkUrl,
                 stationArtworkUrl = stationArtworkUrl,
-                hTeam = hTeam,
-                aTeam = aTeam,
+                homeLogoUrl = homeLogoUrl,
+                awayLogoUrl = awayLogoUrl,
                 showLogos = liveScore != null,
                 contentDescription = stationName,
                 contentScale = ContentScale.Crop,

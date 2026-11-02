@@ -4,9 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -16,27 +14,22 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 
-private const val TEAM_LOGO_BASE_URL =
-    "https://markcs.github.io/Footy-Radio/team-logos"
-
+/**
+ * Artwork for the player. Song artwork wins, then the two team logos when a live score is
+ * showing, then the station image. Logo URLs come from the score provider, so this works for
+ * any sport.
+ */
 @Composable
 fun TeamLogoImage(
     artworkUrl: String?,          // song artwork only
     stationArtworkUrl: String?,   // station image fallback
-    hTeam: String?,
-    aTeam: String?,
+    homeLogoUrl: String?,
+    awayLogoUrl: String?,
     showLogos: Boolean,
     contentDescription: String?,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop
 ) {
-    val hUrl = remember(hTeam) {
-        hTeam?.let { "$TEAM_LOGO_BASE_URL/${it.replace(" ", "%20")}.png" }
-    }
-    val aUrl = remember(aTeam) {
-        aTeam?.let { "$TEAM_LOGO_BASE_URL/${it.replace(" ", "%20")}.png" }
-    }
-
     when {
         // Priority 1: song artwork
         artworkUrl != null -> {
@@ -51,7 +44,7 @@ fun TeamLogoImage(
             )
         }
         // Priority 2: team logos when live scores active
-        showLogos && hUrl != null && aUrl != null -> {
+        showLogos && homeLogoUrl != null && awayLogoUrl != null -> {
             Row(
                 modifier = modifier,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -59,19 +52,19 @@ fun TeamLogoImage(
             ) {
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
-                        .data(hUrl)
+                        .data(homeLogoUrl)
                         .crossfade(true)
                         .build(),
-                    contentDescription = hTeam,
+                    contentDescription = null,
                     contentScale = contentScale,
                     modifier = Modifier.weight(1f).fillMaxSize()
                 )
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
-                        .data(aUrl)
+                        .data(awayLogoUrl)
                         .crossfade(true)
                         .build(),
-                    contentDescription = aTeam,
+                    contentDescription = null,
                     contentScale = contentScale,
                     modifier = Modifier.weight(1f).fillMaxSize()
                 )

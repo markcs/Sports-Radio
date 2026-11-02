@@ -50,6 +50,8 @@ data class PlayerUiState(
     val liveScore: String? = null,
     val liveScoreHTeam: String? = null,
     val liveScoreATeam: String? = null,
+    val liveScoreHLogoUrl: String? = null,
+    val liveScoreALogoUrl: String? = null,
     val isLive: Boolean = true,
     val durationMs: Long = 0L,
     val isError: Boolean = false,
@@ -434,7 +436,9 @@ class PlayerViewModel(
                     uiState = uiState.copy(
                         liveScore = text,
                         liveScoreHTeam = primary?.home?.name,
-                        liveScoreATeam = primary?.away?.name
+                        liveScoreATeam = primary?.away?.name,
+                        liveScoreHLogoUrl = primary?.home?.logoUrl,
+                        liveScoreALogoUrl = primary?.away?.logoUrl
                     )
                 }
             }

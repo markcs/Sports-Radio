@@ -344,6 +344,8 @@ class AudioService : MediaLibraryService() {
                         scoreText = ScoreTickerFormatter.format(snapshot, abbreviated).orEmpty(),
                         hTeam = primary.home.name,
                         aTeam = primary.away.name,
+                        hLogoUrl = primary.home.logoUrl,
+                        aLogoUrl = primary.away.logoUrl,
                     )
                 } else {
                     null
@@ -859,9 +861,9 @@ class AudioService : MediaLibraryService() {
             val artworkKey: String? = when {
                 !songArtworkUrl.isNullOrBlank() -> songArtworkUrl
                 currentLiveScore != null -> {
-                    val h = currentLiveScore!!.hTeam
-                    val a = currentLiveScore!!.aTeam
-                    if (h.isNotBlank() && a.isNotBlank()) "teamlogo:$h|$a" else null
+                    val h = currentLiveScore!!.hLogoUrl
+                    val a = currentLiveScore!!.aLogoUrl
+                    if (!h.isNullOrBlank() && !a.isNullOrBlank()) "teamlogo:$h|$a" else null
                 }
                 else -> currentItem.mediaMetadata.artworkUri?.toString()
             }
@@ -891,10 +893,10 @@ class AudioService : MediaLibraryService() {
 
                 // Priority 2: team logos when live score active
                 if (!artworkApplied && currentLiveScore != null) {
-                    val hTeam = currentLiveScore!!.hTeam
-                    val aTeam = currentLiveScore!!.aTeam
-                    if (hTeam.isNotBlank() && aTeam.isNotBlank()) {
-                        artworkApplied = applyTeamLogoArtwork(hTeam, aTeam, metaBuilder)
+                    val hUrl = currentLiveScore!!.hLogoUrl
+                    val aUrl = currentLiveScore!!.aLogoUrl
+                    if (!hUrl.isNullOrBlank() && !aUrl.isNullOrBlank()) {
+                        artworkApplied = applyTeamLogoArtwork(hUrl, aUrl, metaBuilder)
                     }
                 }
 
@@ -1193,22 +1195,19 @@ class AudioService : MediaLibraryService() {
         }
     }
 
+    /** Builds a side-by-side logo composite from the two logo URLs supplied by the score provider. */
     private suspend fun applyTeamLogoArtwork(
-        hTeam: String,
-        aTeam: String,
+        hUrl: String,
+        aUrl: String,
         builder: MediaMetadata.Builder
     ): Boolean {
-        val cacheKey = "$hTeam|$aTeam"
+        val cacheKey = "$hUrl|$aUrl"
         val cached = teamLogoCache[cacheKey]
         if (cached != null) {
             builder.setArtworkData(cached, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
-            builder.setArtworkUri(Uri.parse("footyradio://teamlogo?h=${hTeam.replace(" ", "%20")}&a=${aTeam.replace(" ", "%20")}"))
+            builder.setArtworkUri(Uri.parse("footyradio://teamlogo?k=${Uri.encode(cacheKey)}"))
             return true
         }
-
-        val baseUrl = "https://markcs.github.io/Footy-Radio/team-logos"
-        val hUrl = "$baseUrl/${hTeam.replace(" ", "%20")}.png"
-        val aUrl = "$baseUrl/${aTeam.replace(" ", "%20")}.png"
 
         val bytes = withContext(Dispatchers.IO) {
             try {
@@ -1242,7 +1241,7 @@ class AudioService : MediaLibraryService() {
                     outputStream.toByteArray()
                 } else null
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to build team logo composite: $hTeam vs $aTeam", e)
+                Log.e(TAG, "Failed to build team logo composite: $hUrl vs $aUrl", e)
                 null
             }
         }
@@ -1250,7 +1249,7 @@ class AudioService : MediaLibraryService() {
         if (bytes != null) {
             teamLogoCache[cacheKey] = bytes
             builder.setArtworkData(bytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
-            builder.setArtworkUri(Uri.parse("footyradio://teamlogo?h=${hTeam.replace(" ", "%20")}&a=${aTeam.replace(" ", "%20")}"))
+            builder.setArtworkUri(Uri.parse("footyradio://teamlogo?k=${Uri.encode(cacheKey)}"))
             return true
         }
         return false

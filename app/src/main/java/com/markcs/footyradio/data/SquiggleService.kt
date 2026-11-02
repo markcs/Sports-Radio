@@ -117,7 +117,9 @@ data class SquiggleCompleteEvent(
 data class LiveScoreState(
     val scoreText: String,
     val hTeam: String,
-    val aTeam: String
+    val aTeam: String,
+    val hLogoUrl: String? = null,
+    val aLogoUrl: String? = null
 )
 
 class SquiggleService(
