@@ -2,7 +2,7 @@
   "station": [
     {
       "desc": "Melbourne's Favourite Hit Music Station",
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/Nova100.png",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/Nova100.png",
       "longDesc": "",
       "name": "Nova 100",
       "streamURLs": [
@@ -19,13 +19,13 @@
             "https://sa47.scastream.com.au/3mmm_128",
             "https://sa47.scastream.com.au/live/3mmm_128.stream/playlist.m3u8"
       ],
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/mmm.png",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/mmm.png",
       "desc": "Triple M Melbourne",
       "longDesc": ""
     },
     {
       "desc": "Melbourne's Good Times and Great Classic Hits",
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/Gold1043.png",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/Gold1043.png",
       "longDesc": "",
       "name": "GOLD 104.3",
       "streamURLs": [
@@ -37,7 +37,7 @@
     },
     {
       "desc": "Make Up Your Own Mind",
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/K1011.png",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/K1011.png",
       "longDesc": "",
       "name": "KIIS 1011",
       "streamURLs": [
@@ -48,7 +48,7 @@
     },
     {
       "desc": "Your feel good station",
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/smoothfm915.jpg",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/smoothfm915.jpg",
       "longDesc": "",
       "name": "Smooth FM",
       "streamURLs": [
@@ -60,7 +60,7 @@
     },
     {
       "desc": "Your mates on radio, it's Melbourne's favourite show",
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/fox1019.png",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/fox1019.png",
       "longDesc": "",
       "name": "Fox FM",
       "streamURLs": [
@@ -71,7 +71,7 @@
     },
     {
       "desc": "Stay informed, stay curious",
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/ABCRadioNational.png",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/ABCRadioNational.png",
       "longDesc": "",
       "name": "ABC RN Victoria",
       "streamURLs": [
@@ -81,7 +81,7 @@
     },
     {
       "desc": "Melbourne is full of stories that deserve a home. That home is here.",
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/ABC-774-Melbourne.png",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/ABC-774-Melbourne.png",
       "longDesc": "",
       "name": "774 ABC",
       "streamURLs": [
@@ -92,7 +92,7 @@
     },
     {
       "desc": "Melbourne’s Home of Sport",
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/sen.png",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/sen.png",
       "longDesc": "",
       "name": "1116 SEN",
       "streamURLs": [
@@ -102,7 +102,7 @@
     },
     {
       "desc": "Melbourne’s Number 1",
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/3aw.png",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/3aw.png",
       "longDesc": "",
       "name": "3AW",
       "streamURLs": [
@@ -112,7 +112,7 @@
     },
     {
       "desc": "All The Hits",
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/totally_radio_hits.jpg",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/totally_radio_hits.jpg",
       "longDesc": "",
       "name": "Totally Radio - Hits",
       "streamURLs": [
@@ -122,7 +122,7 @@
     },
     {
       "desc": "Fresh Pop Now",
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/totally_radio_pop.jpg",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/totally_radio_pop.jpg",
       "longDesc": "",
       "name": "Totally Radio - Pop",
       "streamURLs": [
@@ -132,7 +132,7 @@
     },
     {
       "desc": "Legends only",
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/totally_radio_greatesthits.png",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/totally_radio_greatesthits.png",
       "longDesc": "",
       "name": "Totally Radio - Greatest Hits",
       "streamURLs": [
@@ -142,7 +142,7 @@
     },
     {
       "desc": "Chill Out",
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/totally_radio_easy.jpg",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/totally_radio_easy.jpg",
       "longDesc": "",
       "name": "Totally Radio - Easy",
       "streamURLs": [
@@ -152,7 +152,7 @@
     },
     {
       "desc": "For Those About to Rock",
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/totally_radio_rock.jpg",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/totally_radio_rock.jpg",
       "longDesc": "",
       "name": "Totally Radio - Rock",
       "streamURLs": [
@@ -162,7 +162,7 @@
     },
     {
       "desc": "Rocks the 80s",
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/mmm-80s.jpg",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/mmm-80s.jpg",
       "longDesc": "",
       "name": "Triple M 80s",
       "streamURLs": [
@@ -173,7 +173,7 @@
     },
     {
       "desc": "Rock the 90s",
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/mmm-90s.jpg",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/mmm-90s.jpg",
       "longDesc": "",
       "name": "Triple M 90s",
       "streamURLs": [
@@ -184,7 +184,7 @@
     },
     {
       "desc": "Today's Soft Pop Vibes",
-      "imageURL": "https://markcs.github.io/Footy-Radio/stations/icons/chill_pop_hits.jpg",
+      "imageURL": "https://markcs.github.io/Sports-Radio/stations/icons/chill_pop_hits.jpg",
       "longDesc": "",
       "name": "Chill Pop Hits",
       "streamURLs": [

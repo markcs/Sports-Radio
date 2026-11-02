@@ -8,7 +8,7 @@ import com.markcs.footyradio.scores.model.TeamRef
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-private const val TEAM_LOGO_BASE = "https://markcs.github.io/Footy-Radio/team-logos"
+private const val TEAM_LOGO_BASE = "https://markcs.github.io/Sports-Radio/team-logos"
 
 internal fun SquiggleState.toSnapshot(
     day: String,

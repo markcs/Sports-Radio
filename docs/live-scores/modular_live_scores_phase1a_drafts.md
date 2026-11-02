@@ -293,7 +293,7 @@ import com.markcs.footyradio.scores.model.TeamRef
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-private const val TEAM_LOGO_BASE = "https://markcs.github.io/Footy-Radio/team-logos"
+private const val TEAM_LOGO_BASE = "https://markcs.github.io/Sports-Radio/team-logos"
 
 internal fun SquiggleState.toSnapshot(
     day: String,
@@ -615,7 +615,7 @@ class SquiggleReducerTest {
     fun logo_urls_encode_spaces() {
         val m = initialState().toSnapshot(day, t0, shortNames).matches.last()
         assertEquals(
-            "https://markcs.github.io/Footy-Radio/team-logos/Sydney%20Swans.png",
+            "https://markcs.github.io/Sports-Radio/team-logos/Sydney%20Swans.png",
             m.away.logoUrl,
         )
     }

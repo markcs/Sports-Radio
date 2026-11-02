@@ -33,7 +33,7 @@ internal class MockScoreProvider(scope: CoroutineScope) : SportsScoreProvider {
 
 private const val TICK_MS = 5_000L
 private const val MOCK_SPORT_ID = "afl_mock"
-private const val LOGO_BASE = "https://markcs.github.io/Footy-Radio/team-logos"
+private const val LOGO_BASE = "https://markcs.github.io/Sports-Radio/team-logos"
 private const val QUARTER_SECS = 900
 private const val SECS_PER_TICK = 5
 

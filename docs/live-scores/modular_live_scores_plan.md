@@ -195,7 +195,7 @@ class SportsScoreManager(
 - Implement `SportsScoreProvider`.
 - Inject or encapsulate AFL team abbreviation lookups.
 - Return `LiveScoreState` with full logo URLs:
-  `"https://markcs.github.io/Footy-Radio/team-logos/${team}.png"`.
+  `"https://markcs.github.io/Sports-Radio/team-logos/${team}.png"`.
 
 ### C. [`AudioService.kt`](file:///home/mark/git/Footy-Radio/app/src/main/java/com/markcs/footyradio/AudioService.kt)
 - Remove `SquiggleService` import, `startSquigglePolling()`, and `stopSquigglePolling()`.

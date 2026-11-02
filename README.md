@@ -1,6 +1,6 @@
-# Footy Radio
+# Sports Radio
 
-An open-source Android radio app tailored for Australian football fans. Stream radio stations and catch live AFL scores — all in one place - with Android Auto support.
+An open-source Android radio app tailored for sports fans. Stream radio stations and catch live AFL, NBA, and Premier League scores — all in one place - with Android Auto support.
 
 Forked from [Swift Radio Android](https://github.com/fethica/Swift-Radio-Android) by Fethi, built with Kotlin, Jetpack Compose, and Media3.
 
@@ -11,10 +11,12 @@ Forked from [Swift Radio Android](https://github.com/fethica/Swift-Radio-Android
 
 ## Features
 
-- Stream  radio stations with background playback
+- Stream radio stations with background playback
 - Preloaded with a few Melbourne FM stations
-- Live AFL scores on the Now Playing screen, powered by the [Squiggle API](https://squiggle.com.au/) via real-time SSE updates
-- Team logos for all 18 AFL clubs displayed alongside live scores
+- Live sports scores on the Now Playing screen:
+  - AFL scores powered by the [Squiggle API](https://squiggle.com.au/) via real-time SSE updates
+  - NBA and Premier League scores powered by the ESPN scoreboard API
+- Team logos displayed alongside live scores
 - Multiple stream URL fallbacks per station for improved reliability
 - Album art and track metadata from streams and the iTunes API
 - Android Auto integration with browse tree, playback controls, and artwork
@@ -25,7 +27,7 @@ Forked from [Swift Radio Android](https://github.com/fethica/Swift-Radio-Android
 
 ## Requirements
 
-- Android 7.0+ (API 24)
+- Android 8.0+ (API 26)
 - Android Studio
 
 ## Getting Started
@@ -37,7 +39,7 @@ Forked from [Swift Radio Android](https://github.com/fethica/Swift-Radio-Android
 
 ### Station Format
 
-Stations are loaded from a remote JSON file hosted at  `https://markcs.github.io/Footy-Radio/stations/stations.json` and user configurable within the app at `Config.stationsURL`. Each station supports the following fields:
+Stations are loaded from a remote JSON file hosted at `https://markcs.github.io/Sports-Radio/stations/stations.json` and user configurable within the app at `Config.stationsURL`. Each station supports the following fields:
 
 ```json
 {
@@ -81,19 +83,19 @@ object Config {
     const val email = "contact@example.com"
     const val feedbackURL = "https://..."
     const val licenseURL = "https://..."
-    const val shareText = "Check out Footy Radio!"
+    const val shareText = "Check out Sports Radio!"
 }
 ```
 
-### Live AFL Scores
+### Live Scores
 
-Footy Radio integrates with the [Squiggle API](https://squiggle.com.au/) to display live AFL scores on the Now Playing screen. Scores update in real time via a Server-Sent Events (SSE) connection that opens automatically around game time and closes when all games for the day are complete.
+Sports Radio integrates with the [Squiggle API](https://squiggle.com.au/) for AFL and ESPN scoreboard for NBA and Premier League to display live scores on the Now Playing screen. AFL scores update in real time via a Server-Sent Events (SSE) connection that opens automatically around game time and closes when all games for the day are complete.
 
 Team logos for all 18 AFL clubs are bundled in the `team-logos/` directory and are displayed alongside the score ticker.
 
 ### Station Icons
 
-Station artwork is hosted on GitHub Pages at `https://markcs.github.io/Footy-Radio/stations/icons/` and referenced directly from the stations JSON. Icons for the included Melbourne stations are provided in the `stations/icons/` directory.
+Station artwork is hosted on GitHub Pages at `https://markcs.github.io/Sports-Radio/stations/icons/` and referenced directly from the stations JSON. Icons for the included Melbourne stations are provided in the `stations/icons/` directory.
 
 ### Customizing Text and Translation
 
@@ -122,4 +124,4 @@ Android will automatically use the correct language based on the user's device s
 
 ## License
 
-Footy Radio is open source and available under the [MIT License](LICENSE).
+Sports Radio is open source and available under the [MIT License](LICENSE).
