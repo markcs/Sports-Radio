@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -107,6 +108,15 @@ class MainActivity : AppCompatActivity() {
 
                 LaunchedEffect(bottomSheetState.currentValue) {
                     // When sheet is collapsed, we might want to do something
+                }
+
+                // Back closes About, then collapses an expanded player, and only then
+                // falls through to the system (which exits the app from the main screen).
+                BackHandler(enabled = showAbout) { showAbout = false }
+                BackHandler(
+                    enabled = !showAbout && bottomSheetState.currentValue == SheetValue.Expanded
+                ) {
+                    scope.launch { bottomSheetState.partialExpand() }
                 }
 
                 if (showAbout) {
