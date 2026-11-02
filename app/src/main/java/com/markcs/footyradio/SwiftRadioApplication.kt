@@ -73,19 +73,15 @@ class SwiftRadioApplication : Application(), SingletonImageLoader.Factory {
     }
 
     val sportsScoreManager: SportsScoreManager by lazy {
-        val provider: SportsScoreProvider = if (isDebuggable) {
-            MockScoreProvider(applicationScope)
-        } else {
-            SquiggleAflProvider(
-                api = SquiggleKtorApi(sharedOkHttpClient),
-                clock = SystemScoreClock,
-                shortNames = teamsRepository.teamsMap,
-                scope = applicationScope,
-            )
-        }
+        val afl = SquiggleAflProvider(
+            api = SquiggleKtorApi(sharedOkHttpClient),
+            clock = SystemScoreClock,
+            shortNames = teamsRepository.teamsMap,
+            scope = applicationScope,
+        )
         val espnApi = EspnKtorApi(sharedOkHttpClient)
-        val providers = listOf(
-            provider,
+        val providers = listOfNotNull<SportsScoreProvider>(
+            afl,
             EspnScoreboardProvider(
                 sportId = "nba",
                 displayName = "NBA",
@@ -102,6 +98,8 @@ class SwiftRadioApplication : Application(), SingletonImageLoader.Factory {
                 fetch = espnApi::scoreboard,
                 scope = applicationScope,
             ),
+            // Debug builds only: synthetic games for testing outside the season.
+            if (isDebuggable) MockScoreProvider(applicationScope) else null,
         )
         SportsScoreManager(
             providers = providers.associateBy { it.sportId },

@@ -202,11 +202,12 @@ class PlayerViewModel(
         uiState = uiState.copy(enableTeamAbbreviations = enabled)
     }
 
-    fun selectedSportId(): String = sportsScoreManager.selectedSportId.value
+    fun selectedSportIds(): Set<String> = sportsScoreManager.selectedSportIds.value
 
     fun availableSports(): List<Pair<String, String>> = sportsScoreManager.availableSports()
 
-    fun setSelectedSportId(sportId: String) = sportsScoreManager.setSport(sportId)
+    fun setSportSelected(sportId: String, selected: Boolean) =
+        sportsScoreManager.setSportSelected(sportId, selected)
 
     fun getTeamsUrl(): String {
         return teamsRepository.getTeamsUrl()

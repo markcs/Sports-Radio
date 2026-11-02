@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.stateIn
  */
 internal class MockScoreProvider(scope: CoroutineScope) : SportsScoreProvider {
 
-    override val sportId = "afl"
+    override val sportId = MOCK_SPORT_ID
     override val displayName = "AFL (debug mock)"
 
     override val snapshot: StateFlow<LiveScoreSnapshot?> = flow {
@@ -32,12 +32,13 @@ internal class MockScoreProvider(scope: CoroutineScope) : SportsScoreProvider {
 }
 
 private const val TICK_MS = 5_000L
+private const val MOCK_SPORT_ID = "afl_mock"
 private const val LOGO_BASE = "https://markcs.github.io/Footy-Radio/team-logos"
 private const val QUARTER_SECS = 900
 private const val SECS_PER_TICK = 5
 
 internal fun mockSnapshotAt(tick: Int): LiveScoreSnapshot = LiveScoreSnapshot(
-    sportId = "afl",
+    sportId = MOCK_SPORT_ID,
     matches = listOf(
         mockMatch("mock-1", team("Essendon", "ESS"), team("Hawthorn", "HAW"), tick, base = 10, offset = 0),
         mockMatch("mock-2", team("Carlton", "CAR"), team("Collingwood", "COLL"), tick, base = 5, offset = 120),
