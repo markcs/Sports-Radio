@@ -13,6 +13,9 @@ import com.markcs.footyradio.scores.SportsScoreProvider
 import com.markcs.footyradio.scores.afl.SquiggleAflProvider
 import com.markcs.footyradio.scores.afl.SquiggleKtorApi
 import com.markcs.footyradio.scores.afl.SystemScoreClock
+import com.markcs.footyradio.scores.espn.EspnClockStyle
+import com.markcs.footyradio.scores.espn.EspnKtorApi
+import com.markcs.footyradio.scores.espn.EspnScoreboardProvider
 import com.markcs.footyradio.scores.mock.MockScoreProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -80,8 +83,28 @@ class SwiftRadioApplication : Application(), SingletonImageLoader.Factory {
                 scope = applicationScope,
             )
         }
+        val espnApi = EspnKtorApi(sharedOkHttpClient)
+        val providers = listOf(
+            provider,
+            EspnScoreboardProvider(
+                sportId = "nba",
+                displayName = "NBA",
+                leaguePath = "basketball/nba",
+                clockStyle = EspnClockStyle.PERIOD_AND_CLOCK,
+                fetch = espnApi::scoreboard,
+                scope = applicationScope,
+            ),
+            EspnScoreboardProvider(
+                sportId = "epl",
+                displayName = "Premier League",
+                leaguePath = "soccer/eng.1",
+                clockStyle = EspnClockStyle.CLOCK_ONLY,
+                fetch = espnApi::scoreboard,
+                scope = applicationScope,
+            ),
+        )
         SportsScoreManager(
-            providers = mapOf(provider.sportId to provider),
+            providers = providers.associateBy { it.sportId },
             prefs = getSharedPreferences("footy_radio_prefs", MODE_PRIVATE),
             scope = applicationScope,
         )
