@@ -128,4 +128,11 @@
     <string name="team_filter_selected">%1$d selected</string>
     <string name="team_filter_hint">Show only %1$s games with at least one of the teams you pick. Leave \"All teams\" ticked to show every game.</string>
     <string name="team_filter_error">Couldn\'t load teams. Check your connection and try again.</string>
+    <!-- Start window (Settings > Live Scores) -->
+    <string name="start_window_section">Scheduled games</string>
+    <string name="start_window_row_title">Show games before they start</string>
+    <string name="start_window_title">Start window</string>
+    <string name="start_window_at_start">At start time</string>
+    <string name="start_window_minutes_before">%1$d minutes before start</string>
+    <string name="start_window_hint">Scheduled games appear on the ticker this long before they start. Choose At start time to show a game only when it begins.</string>
 </resources>

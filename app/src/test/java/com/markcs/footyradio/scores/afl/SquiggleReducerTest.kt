@@ -2,6 +2,8 @@ package com.markcs.footyradio.scores.afl
 
 import com.markcs.footyradio.data.SquiggleResponse
 import com.markcs.footyradio.scores.format.ScoreTickerFormatter
+import com.markcs.footyradio.scores.model.MatchStatus
+import com.markcs.footyradio.scores.model.visibleAt
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -58,9 +60,10 @@ class SquiggleReducerTest {
     }
 
     @Test
-    fun snapshot_excludes_scheduled_other_day_and_unannounced_finished_games() {
+    fun snapshot_includes_scheduled_games_and_excludes_other_day_and_unannounced_finished() {
         val snap = initialState().toSnapshot(day, t0, shortNames)
-        assertEquals(listOf("2", "4"), snap.matches.map { it.id })
+        assertEquals(listOf("2", "4", "1"), snap.matches.map { it.id })
+        assertEquals(MatchStatus.SCHEDULED, snap.matches.single { it.id == "1" }.status)
     }
 
     @Test
@@ -72,7 +75,7 @@ class SquiggleReducerTest {
     @Test
     fun legacy_ticker_string_is_preserved_byte_for_byte() {
         val text = ScoreTickerFormatter.format(
-            initialState().toSnapshot(day, t0, shortNames),
+            initialState().toSnapshot(day, t0, shortNames).visibleAt(t0, 0L),
             abbreviated = false,
         )
         assertEquals(
@@ -86,7 +89,7 @@ class SquiggleReducerTest {
         val snap = initialState().toSnapshot(day, t0, shortNames)
         assertEquals(
             "ESS (84) v HAW (78) Q4 18:22 | Geelong (45) v Sydney Swans (40) Q2 03:10",
-            ScoreTickerFormatter.format(snap, abbreviated = true),
+            ScoreTickerFormatter.format(snap.visibleAt(t0, 0L), abbreviated = true),
         )
         assertEquals("Essendon", snap.matches.first().home.name)
     }
@@ -126,7 +129,7 @@ class SquiggleReducerTest {
 
     @Test
     fun logo_urls_encode_spaces() {
-        val m = initialState().toSnapshot(day, t0, shortNames).matches.last()
+        val m = initialState().toSnapshot(day, t0, shortNames).matches.single { it.id == "4" }
         assertEquals(
             "https://markcs.github.io/Sports-Radio/team-logos/Sydney%20Swans.png",
             m.away.logoUrl,

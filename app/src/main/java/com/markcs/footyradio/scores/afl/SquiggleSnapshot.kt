@@ -25,7 +25,7 @@ internal fun SquiggleState.toSnapshot(
 private fun SquiggleState.isVisible(g: SquiggleGame, nowMs: Long): Boolean {
     val complete = g.complete ?: 0
     return when {
-        complete <= 0 -> false                                    // scheduled
+        complete <= 0 -> true                                     // scheduled; the start window decides
         complete < 100 -> true                                    // live
         else -> g.id?.let { winnerSeenAtMs[it] }
             ?.let { nowMs - it < WINNER_LINGER_MS } ?: false     // finished, lingering
@@ -40,7 +40,12 @@ private fun SquiggleGame.toMatchScore(shortNames: Map<String, String>): MatchSco
     awayScore = ascore?.toString(),
     clock = timestr?.takeIf { it.isNotBlank() },
     // Squiggle does not expose PAUSED. Treat quarter breaks as LIVE.
-    status = if ((complete ?: 0) >= 100) MatchStatus.FINISHED else MatchStatus.LIVE,
+    status = when {
+        (complete ?: 0) >= 100 -> MatchStatus.FINISHED
+        (complete ?: 0) <= 0 -> MatchStatus.SCHEDULED
+        else -> MatchStatus.LIVE
+    },
+    startMs = startMs(),
 )
 
 private fun teamRef(name: String?, id: Int?, shortNames: Map<String, String>): TeamRef {

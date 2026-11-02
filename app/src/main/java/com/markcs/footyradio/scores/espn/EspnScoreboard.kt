@@ -149,6 +149,7 @@ private fun EspnEvent.toMatch(style: EspnClockStyle): MatchScore? {
         awayScore = if (matchStatus == MatchStatus.SCHEDULED) null else away.score.scoreText(),
         clock = clockText(matchStatus, style),
         status = matchStatus,
+        startMs = parseEspnDateMs(date),
     )
 }
 

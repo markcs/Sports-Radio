@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SportsSoccer
@@ -90,12 +91,13 @@ import coil3.compose.AsyncImage
 import com.markcs.footyradio.Config
 import com.markcs.footyradio.PlayerViewModel
 import com.markcs.footyradio.R
+import com.markcs.footyradio.scores.SportsScoreManager
 import com.markcs.footyradio.scores.model.TeamRef
 import com.markcs.footyradio.ui.theme.SubtitleGray
 import java.util.Calendar
 
 /** The sub-pages of Settings. [Root] is the grouped list that opens them. */
-private enum class SettingsPage { Root, LiveScores, TeamFilter, Stations, DataSources, Support, About }
+private enum class SettingsPage { Root, LiveScores, StartWindow, TeamFilter, Stations, DataSources, Support, About }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -113,7 +115,7 @@ fun SettingsScreen(
     val goBack: () -> Unit = {
         when (page) {
             SettingsPage.Root -> { onBack() }
-            SettingsPage.TeamFilter -> { page = SettingsPage.LiveScores }
+            SettingsPage.TeamFilter, SettingsPage.StartWindow -> { page = SettingsPage.LiveScores }
             else -> { page = SettingsPage.Root }
         }
     }
@@ -150,9 +152,11 @@ fun SettingsScreen(
                     onOpenTeams = { sportId ->
                         teamSportId = sportId
                         page = SettingsPage.TeamFilter
-                    }
+                    },
+                    onOpenStartWindow = { page = SettingsPage.StartWindow }
                 )
                 SettingsPage.TeamFilter -> TeamFilterPage(viewModel, teamSportId)
+                SettingsPage.StartWindow -> StartWindowPage(viewModel)
                 SettingsPage.Stations -> StationsPage(viewModel)
                 SettingsPage.DataSources -> DataSourcesPage(viewModel)
                 SettingsPage.Support -> SupportPage(context)
@@ -170,6 +174,7 @@ private fun titleFor(page: SettingsPage): Int = when (page) {
     SettingsPage.Support -> R.string.about_section_support
     SettingsPage.About -> R.string.about_title
     SettingsPage.TeamFilter -> R.string.team_filter_title
+    SettingsPage.StartWindow -> R.string.start_window_title
 }
 
 // --- Pages ---
@@ -233,7 +238,11 @@ private fun RootPage(
 }
 
 @Composable
-private fun LiveScoresPage(viewModel: PlayerViewModel, onOpenTeams: (String) -> Unit) {
+private fun LiveScoresPage(
+    viewModel: PlayerViewModel,
+    onOpenTeams: (String) -> Unit,
+    onOpenStartWindow: () -> Unit,
+) {
     var selectedSports by remember { mutableStateOf(viewModel.selectedSportIds()) }
     val state = viewModel.uiState
 
@@ -248,6 +257,15 @@ private fun LiveScoresPage(viewModel: PlayerViewModel, onOpenTeams: (String) -> 
                     selectedSports = if (checked) selectedSports - id else selectedSports + id
                 }
             }
+        }
+        SectionLabel(stringResource(R.string.start_window_section))
+        SettingsGroup {
+            SettingsRow(
+                icon = Icons.Filled.Schedule,
+                title = stringResource(R.string.start_window_row_title),
+                subtitle = startWindowLabel(viewModel.scheduledWindowMinutes()),
+                onClick = onOpenStartWindow
+            )
         }
         val teamSports = viewModel.availableSports().filter { it.first in selectedSports }
         if (teamSports.isNotEmpty()) {
@@ -277,6 +295,31 @@ private fun LiveScoresPage(viewModel: PlayerViewModel, onOpenTeams: (String) -> 
                 checked = state.enableTeamAbbreviations,
                 onCheckedChange = { viewModel.setTeamAbbreviationsEnabled(it) }
             )
+        }
+    }
+}
+
+@Composable
+private fun startWindowLabel(minutes: Int): String = if (minutes == 0) {
+    stringResource(R.string.start_window_at_start)
+} else {
+    stringResource(R.string.start_window_minutes_before, minutes)
+}
+
+@Composable
+private fun StartWindowPage(viewModel: PlayerViewModel) {
+    var current by remember { mutableStateOf(viewModel.scheduledWindowMinutes()) }
+
+    PageColumn {
+        PageHint(stringResource(R.string.start_window_hint))
+        SettingsGroup {
+            SportsScoreManager.SCHEDULED_WINDOW_OPTIONS.forEachIndexed { index, minutes ->
+                if (index > 0) SettingsDivider()
+                CheckRow(label = startWindowLabel(minutes), checked = minutes == current) {
+                    current = minutes
+                    viewModel.setScheduledWindowMinutes(minutes)
+                }
+            }
         }
     }
 }

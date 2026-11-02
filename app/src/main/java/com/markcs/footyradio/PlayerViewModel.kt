@@ -217,6 +217,10 @@ class PlayerViewModel(
 
     suspend fun loadTeams(sportId: String): List<TeamRef> = sportsScoreManager.teamsFor(sportId)
 
+    fun scheduledWindowMinutes(): Int = sportsScoreManager.scheduledWindowMinutes()
+
+    fun setScheduledWindowMinutes(minutes: Int) = sportsScoreManager.setScheduledWindowMinutes(minutes)
+
     fun getTeamsUrl(): String {
         return teamsRepository.getTeamsUrl()
     }
