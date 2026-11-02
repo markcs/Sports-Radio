@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Feedback
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Info
@@ -48,6 +49,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -61,6 +63,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -87,11 +90,12 @@ import coil3.compose.AsyncImage
 import com.markcs.footyradio.Config
 import com.markcs.footyradio.PlayerViewModel
 import com.markcs.footyradio.R
+import com.markcs.footyradio.scores.model.TeamRef
 import com.markcs.footyradio.ui.theme.SubtitleGray
 import java.util.Calendar
 
 /** The sub-pages of Settings. [Root] is the grouped list that opens them. */
-private enum class SettingsPage { Root, LiveScores, Stations, DataSources, Support, About }
+private enum class SettingsPage { Root, LiveScores, TeamFilter, Stations, DataSources, Support, About }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,11 +105,17 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     var page by rememberSaveable { mutableStateOf(SettingsPage.Root) }
+    // The sport whose team filter is open. Saved so it survives rotation.
+    var teamSportId by rememberSaveable { mutableStateOf("") }
 
-    // From a sub-page, back and the top-bar arrow return to the Settings list. From the
-    // list, they close Settings.
+    // From a sub-page, back and the top-bar arrow return to the Settings list. The team
+    // filter returns to Live Scores. From the list, they close Settings.
     val goBack: () -> Unit = {
-        if (page == SettingsPage.Root) onBack() else page = SettingsPage.Root
+        when (page) {
+            SettingsPage.Root -> { onBack() }
+            SettingsPage.TeamFilter -> { page = SettingsPage.LiveScores }
+            else -> { page = SettingsPage.Root }
+        }
     }
     BackHandler { goBack() }
 
@@ -135,7 +145,14 @@ fun SettingsScreen(
                     appVersion = appVersion(context),
                     onNavigate = { page = it }
                 )
-                SettingsPage.LiveScores -> LiveScoresPage(viewModel)
+                SettingsPage.LiveScores -> LiveScoresPage(
+                    viewModel = viewModel,
+                    onOpenTeams = { sportId ->
+                        teamSportId = sportId
+                        page = SettingsPage.TeamFilter
+                    }
+                )
+                SettingsPage.TeamFilter -> TeamFilterPage(viewModel, teamSportId)
                 SettingsPage.Stations -> StationsPage(viewModel)
                 SettingsPage.DataSources -> DataSourcesPage(viewModel)
                 SettingsPage.Support -> SupportPage(context)
@@ -152,6 +169,7 @@ private fun titleFor(page: SettingsPage): Int = when (page) {
     SettingsPage.DataSources -> R.string.settings_data_sources
     SettingsPage.Support -> R.string.about_section_support
     SettingsPage.About -> R.string.about_title
+    SettingsPage.TeamFilter -> R.string.team_filter_title
 }
 
 // --- Pages ---
@@ -215,7 +233,7 @@ private fun RootPage(
 }
 
 @Composable
-private fun LiveScoresPage(viewModel: PlayerViewModel) {
+private fun LiveScoresPage(viewModel: PlayerViewModel, onOpenTeams: (String) -> Unit) {
     var selectedSports by remember { mutableStateOf(viewModel.selectedSportIds()) }
     val state = viewModel.uiState
 
@@ -231,6 +249,26 @@ private fun LiveScoresPage(viewModel: PlayerViewModel) {
                 }
             }
         }
+        val teamSports = viewModel.availableSports().filter { it.first in selectedSports }
+        if (teamSports.isNotEmpty()) {
+            SectionLabel(stringResource(R.string.team_filter_section))
+            SettingsGroup {
+                teamSports.forEachIndexed { index, (id, label) ->
+                    if (index > 0) SettingsDivider()
+                    val count = viewModel.teamFilter(id).size
+                    SettingsRow(
+                        icon = Icons.Filled.Groups,
+                        title = stringResource(R.string.team_filter_row_title, label),
+                        subtitle = if (count == 0) {
+                            stringResource(R.string.team_filter_all)
+                        } else {
+                            stringResource(R.string.team_filter_selected, count)
+                        },
+                        onClick = { onOpenTeams(id) }
+                    )
+                }
+            }
+        }
         SectionLabel(stringResource(R.string.settings_display))
         SettingsGroup {
             SwitchRow(
@@ -239,6 +277,66 @@ private fun LiveScoresPage(viewModel: PlayerViewModel) {
                 checked = state.enableTeamAbbreviations,
                 onCheckedChange = { viewModel.setTeamAbbreviationsEnabled(it) }
             )
+        }
+    }
+}
+
+@Composable
+private fun TeamFilterPage(viewModel: PlayerViewModel, sportId: String) {
+    val sportName = viewModel.availableSports().firstOrNull { it.first == sportId }?.second.orEmpty()
+    var teams by remember(sportId) { mutableStateOf<List<TeamRef>?>(null) }
+    var selected by remember(sportId) { mutableStateOf(viewModel.teamFilter(sportId)) }
+
+    LaunchedEffect(sportId) {
+        val loaded = viewModel.loadTeams(sportId)
+        teams = loaded
+        // Drop saved teams the sport no longer lists, so a stale id cannot hide every game.
+        if (loaded.isNotEmpty()) {
+            val valid = loaded.mapTo(HashSet()) { it.id }
+            val pruned = selected.filterTo(HashSet()) { it in valid }
+            if (pruned.size != selected.size) {
+                selected = pruned
+                viewModel.setTeamFilter(sportId, pruned)
+            }
+        }
+    }
+
+    PageColumn {
+        PageHint(stringResource(R.string.team_filter_hint, sportName))
+        SettingsGroup {
+            CheckRow(
+                label = stringResource(R.string.team_filter_all),
+                checked = selected.isEmpty()
+            ) {
+                selected = emptySet()
+                viewModel.setTeamFilter(sportId, emptySet())
+            }
+        }
+        SettingsGroup {
+            when (val loaded = teams) {
+                null -> Box(
+                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                }
+                emptyList<TeamRef>() -> Text(
+                    text = stringResource(R.string.team_filter_error),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = SubtitleGray,
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    textAlign = TextAlign.Center
+                )
+                else -> loaded.forEachIndexed { index, team ->
+                    if (index > 0) SettingsDivider()
+                    val checked = team.id in selected
+                    CheckRow(label = team.name, checked = checked) {
+                        val updated = if (checked) selected - team.id else selected + team.id
+                        selected = updated
+                        viewModel.setTeamFilter(sportId, updated)
+                    }
+                }
+            }
         }
     }
 }

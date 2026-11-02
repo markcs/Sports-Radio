@@ -89,6 +89,7 @@ class SwiftRadioApplication : Application(), SingletonImageLoader.Factory {
                 clockStyle = EspnClockStyle.PERIOD_AND_CLOCK,
                 typicalDurationMs = 3 * 60 * 60_000L,
                 fetch = espnApi::scoreboard,
+                fetchTeams = espnApi::teams,
                 scope = applicationScope,
             ),
             EspnScoreboardProvider(
@@ -98,6 +99,7 @@ class SwiftRadioApplication : Application(), SingletonImageLoader.Factory {
                 clockStyle = EspnClockStyle.CLOCK_ONLY,
                 typicalDurationMs = 135 * 60_000L,
                 fetch = espnApi::scoreboard,
+                fetchTeams = espnApi::teams,
                 scope = applicationScope,
             ),
             // Debug builds only: synthetic games for testing outside the season.

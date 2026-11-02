@@ -39,6 +39,7 @@ internal data class EspnCompetitor(
 
 @Serializable
 internal data class EspnTeam(
+    val id: String = "",
     val displayName: String = "",
     val abbreviation: String? = null,
     val logo: String? = null,
@@ -173,6 +174,7 @@ private fun EspnEvent.clockText(status: MatchStatus, style: EspnClockStyle): Str
 }
 
 private fun EspnTeam.toRef(): TeamRef = TeamRef(
+    id = id,
     name = displayName,
     shortName = abbreviation?.takeIf { it.isNotBlank() } ?: displayName,
     logoUrl = logo?.takeIf { it.isNotBlank() },
@@ -187,3 +189,45 @@ private fun MatchStatus.sortRank(): Int = when (this) {
     MatchStatus.SCHEDULED -> 2
     MatchStatus.FINISHED -> 3
 }
+
+/*
+ * DTOs for the ESPN teams endpoint (site.api.espn.com/apis/site/v2/sports/{league}/teams),
+ * used by the team filter. Every field is optional, as above.
+ */
+
+@Serializable
+internal data class EspnTeamsResponse(val sports: List<EspnTeamsSport> = emptyList())
+
+@Serializable
+internal data class EspnTeamsSport(val leagues: List<EspnTeamsLeague> = emptyList())
+
+@Serializable
+internal data class EspnTeamsLeague(val teams: List<EspnTeamEntry> = emptyList())
+
+@Serializable
+internal data class EspnTeamEntry(val team: EspnTeamDetail = EspnTeamDetail())
+
+@Serializable
+internal data class EspnTeamDetail(
+    val id: String = "",
+    val displayName: String = "",
+    val abbreviation: String? = null,
+    val logos: List<EspnLogo> = emptyList(),
+)
+
+@Serializable
+internal data class EspnLogo(val href: String = "")
+
+internal fun EspnTeamsResponse.toTeamRefs(): List<TeamRef> = sports
+    .flatMap { it.leagues }
+    .flatMap { it.teams }
+    .map { it.team }
+    .filter { it.id.isNotBlank() }
+    .map { team ->
+        TeamRef(
+            id = team.id,
+            name = team.displayName,
+            shortName = team.abbreviation?.takeIf { it.isNotBlank() } ?: team.displayName,
+            logoUrl = team.logos.firstOrNull()?.href?.takeIf { it.isNotBlank() },
+        )
+    }

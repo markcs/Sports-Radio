@@ -59,6 +59,13 @@ internal class SquiggleKtorApi(okHttpClient: OkHttpClient) : SquiggleApi {
         null
     }
 
+    override suspend fun fetchTeams(): List<SquiggleTeam>? = try {
+        client.get("https://api.squiggle.com.au/?q=teams").body<SquiggleTeamsResponse>().teams
+    } catch (e: Exception) {
+        Log.e(TAG, "Failed to fetch teams", e)
+        null
+    }
+
     override fun sseEvents(): Flow<SquiggleEvent> = flow {
         client.sse("https://sse.squiggle.com.au/events") {
             incoming.collect { ev ->

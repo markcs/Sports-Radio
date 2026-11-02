@@ -56,3 +56,7 @@ internal fun parseSquiggleEvent(name: String, data: String, json: Json): Squiggl
 } catch (e: Exception) {
     null
 }
+
+@Serializable internal data class SquiggleTeam(val id: Int, val name: String)
+
+@Serializable internal data class SquiggleTeamsResponse(val teams: List<SquiggleTeam> = emptyList())

@@ -2,6 +2,7 @@ package com.markcs.footyradio.scores.afl
 
 import com.markcs.footyradio.data.SquiggleGame
 import com.markcs.footyradio.scores.SportsScoreProvider
+import com.markcs.footyradio.scores.model.TeamRef
 import com.markcs.footyradio.scores.model.LiveScoreSnapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -31,6 +32,7 @@ interface ScoreClock {
 /** Network boundary. The real implementation wraps Ktor. Tests supply fixtures. */
 internal interface SquiggleApi {
     suspend fun fetchGames(year: Int): List<SquiggleGame>?
+    suspend fun fetchTeams(): List<SquiggleTeam>?
     fun sseEvents(): Flow<SquiggleEvent>
 }
 
@@ -97,6 +99,18 @@ internal class SquiggleAflProvider(
             }
         }
     }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
+
+    override suspend fun teams(): List<TeamRef> {
+        val names = shortNames.value
+        return api.fetchTeams().orEmpty().map { team ->
+            TeamRef(
+                id = team.id.toString(),
+                name = team.name,
+                shortName = names[team.name.lowercase()] ?: team.name,
+                logoUrl = "$TEAM_LOGO_BASE/${team.name.replace(" ", "%20")}.png",
+            )
+        }
+    }
 
     private suspend fun fetchInitialGames(year: Int): Map<Int, SquiggleGame> {
         while (true) {

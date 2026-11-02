@@ -1,6 +1,7 @@
 package com.markcs.footyradio.scores
 
 import com.markcs.footyradio.scores.model.LiveScoreSnapshot
+import com.markcs.footyradio.scores.model.TeamRef
 import kotlinx.coroutines.flow.StateFlow
 
 interface SportsScoreProvider {
@@ -14,4 +15,7 @@ interface SportsScoreProvider {
      * onActiveScreensChanged() and no abbreviation parameter.
      */
     val snapshot: StateFlow<LiveScoreSnapshot?>
+
+    /** The sport's full team list, for the team filter. Empty when it cannot be loaded. */
+    suspend fun teams(): List<TeamRef> = emptyList()
 }

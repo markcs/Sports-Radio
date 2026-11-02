@@ -8,7 +8,7 @@ import com.markcs.footyradio.scores.model.TeamRef
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-private const val TEAM_LOGO_BASE = "https://markcs.github.io/Sports-Radio/team-logos"
+internal const val TEAM_LOGO_BASE = "https://markcs.github.io/Sports-Radio/team-logos"
 
 internal fun SquiggleState.toSnapshot(
     day: String,
@@ -34,8 +34,8 @@ private fun SquiggleState.isVisible(g: SquiggleGame, nowMs: Long): Boolean {
 
 private fun SquiggleGame.toMatchScore(shortNames: Map<String, String>): MatchScore = MatchScore(
     id = id?.toString().orEmpty(),
-    home = teamRef(hteam, shortNames),
-    away = teamRef(ateam, shortNames),
+    home = teamRef(hteam, hteamid, shortNames),
+    away = teamRef(ateam, ateamid, shortNames),
     homeScore = hscore?.toString(),
     awayScore = ascore?.toString(),
     clock = timestr?.takeIf { it.isNotBlank() },
@@ -43,9 +43,10 @@ private fun SquiggleGame.toMatchScore(shortNames: Map<String, String>): MatchSco
     status = if ((complete ?: 0) >= 100) MatchStatus.FINISHED else MatchStatus.LIVE,
 )
 
-private fun teamRef(name: String?, shortNames: Map<String, String>): TeamRef {
+private fun teamRef(name: String?, id: Int?, shortNames: Map<String, String>): TeamRef {
     val full = name ?: "Unknown"
     return TeamRef(
+        id = id?.toString().orEmpty(),
         name = full,
         shortName = shortNames[full.lowercase()] ?: full,
         logoUrl = name?.let { "$TEAM_LOGO_BASE/${it.replace(" ", "%20")}.png" },

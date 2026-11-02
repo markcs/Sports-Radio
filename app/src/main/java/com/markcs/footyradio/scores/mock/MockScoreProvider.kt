@@ -22,6 +22,8 @@ internal class MockScoreProvider(scope: CoroutineScope) : SportsScoreProvider {
     override val sportId = MOCK_SPORT_ID
     override val displayName = "AFL (debug mock)"
 
+    override suspend fun teams(): List<TeamRef> = MOCK_TEAMS
+
     override val snapshot: StateFlow<LiveScoreSnapshot?> = flow {
         var tick = 0
         while (true) {
@@ -37,6 +39,13 @@ private const val LOGO_BASE = "https://markcs.github.io/Sports-Radio/team-logos"
 private const val QUARTER_SECS = 900
 private const val SECS_PER_TICK = 5
 
+private val MOCK_TEAMS = listOf(
+    team("Essendon", "ESS"),
+    team("Hawthorn", "HAW"),
+    team("Carlton", "CAR"),
+    team("Collingwood", "COLL"),
+)
+
 internal fun mockSnapshotAt(tick: Int): LiveScoreSnapshot = LiveScoreSnapshot(
     sportId = MOCK_SPORT_ID,
     matches = listOf(
@@ -46,6 +55,7 @@ internal fun mockSnapshotAt(tick: Int): LiveScoreSnapshot = LiveScoreSnapshot(
 )
 
 private fun team(name: String, short: String) = TeamRef(
+    id = name,
     name = name,
     shortName = short,
     logoUrl = "$LOGO_BASE/${name.replace(" ", "%20")}.png",

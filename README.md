@@ -19,6 +19,7 @@ Forked from [Swift Radio Android](https://github.com/fethica/Swift-Radio-Android
   - **Premier League (English Soccer)**: powered by the ESPN Scoreboard API with match period and clock tracking
   - **Mock Provider (Debug builds)**: simulated live game progression for layout and UI testing
 - Sport selection in **Settings**: easily switch between sports or disable scores
+- Team filters per sport: show live scores only for the teams you follow, or leave all teams on
 - Dynamic team logos supplied directly by each score provider
 - Smart match completion handling: finished NBA and Premier League games cleanly clear 15 minutes after completion
 - Multiple stream URL fallbacks per station for improved playback reliability

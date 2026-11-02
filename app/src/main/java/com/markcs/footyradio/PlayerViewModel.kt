@@ -27,6 +27,7 @@ import com.markcs.footyradio.data.ArtworkService
 import com.markcs.footyradio.data.RadioStation
 import com.markcs.footyradio.data.StationsRepository
 import com.markcs.footyradio.scores.SportsScoreManager
+import com.markcs.footyradio.scores.model.TeamRef
 import com.markcs.footyradio.scores.format.LiveScoreMetadata
 import com.markcs.footyradio.scores.format.ScoreTickerFormatter
 import com.google.common.util.concurrent.ListenableFuture
@@ -208,6 +209,13 @@ class PlayerViewModel(
 
     fun setSportSelected(sportId: String, selected: Boolean) =
         sportsScoreManager.setSportSelected(sportId, selected)
+
+    fun teamFilter(sportId: String): Set<String> = sportsScoreManager.teamFilter(sportId)
+
+    fun setTeamFilter(sportId: String, teamIds: Set<String>) =
+        sportsScoreManager.setTeamFilter(sportId, teamIds)
+
+    suspend fun loadTeams(sportId: String): List<TeamRef> = sportsScoreManager.teamsFor(sportId)
 
     fun getTeamsUrl(): String {
         return teamsRepository.getTeamsUrl()

@@ -2,6 +2,7 @@ package com.markcs.footyradio.scores.espn
 
 import android.util.Log
 import com.markcs.footyradio.Config
+import com.markcs.footyradio.scores.model.TeamRef
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.defaultRequest
@@ -34,6 +35,18 @@ internal class EspnKtorApi(okHttpClient: OkHttpClient) {
         defaultRequest {
             header(HttpHeaders.UserAgent, Config.userAgent)
         }
+    }
+
+    suspend fun teams(leaguePath: String): List<TeamRef> = try {
+        val body = client
+            .get("https://site.api.espn.com/apis/site/v2/sports/$leaguePath/teams")
+            .bodyAsText()
+        json.decodeFromString(EspnTeamsResponse.serializer(), body).toTeamRefs()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.e(TAG, "Teams fetch failed for $leaguePath", e)
+        emptyList()
     }
 
     suspend fun scoreboard(leaguePath: String): EspnScoreboard? = try {

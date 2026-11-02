@@ -120,4 +120,12 @@
     <string name="feature_stations_subtitle">Comes with a straightforward station list that supports multiple streaming URLs from a local or remote JSON.</string>
     <string name="feature_setup_title">Easy Project Setup</string>
     <string name="feature_setup_subtitle">Ready to run right out of the box. Adjust key settings in a single configuration file.</string>
+    <!-- Team filter (Settings > Live Scores) -->
+    <string name="team_filter_title">Teams</string>
+    <string name="team_filter_section">Team filters</string>
+    <string name="team_filter_row_title">%1$s teams</string>
+    <string name="team_filter_all">All teams</string>
+    <string name="team_filter_selected">%1$d selected</string>
+    <string name="team_filter_hint">Show only %1$s games with at least one of the teams you pick. Leave \"All teams\" ticked to show every game.</string>
+    <string name="team_filter_error">Couldn\'t load teams. Check your connection and try again.</string>
 </resources>

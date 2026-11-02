@@ -3,6 +3,7 @@ package com.markcs.footyradio.scores.espn
 import com.markcs.footyradio.scores.SportsScoreProvider
 import com.markcs.footyradio.scores.model.LiveScoreSnapshot
 import com.markcs.footyradio.scores.model.MatchStatus
+import com.markcs.footyradio.scores.model.TeamRef
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
@@ -23,6 +24,7 @@ internal class EspnScoreboardProvider(
     /** Used to estimate a finish time when the app first sees a game already final. */
     private val typicalDurationMs: Long,
     private val fetch: suspend (leaguePath: String) -> EspnScoreboard?,
+    private val fetchTeams: suspend (leaguePath: String) -> List<TeamRef> = { emptyList() },
     scope: CoroutineScope,
     private val nowMs: () -> Long = System::currentTimeMillis,
 ) : SportsScoreProvider {
@@ -43,6 +45,8 @@ internal class EspnScoreboardProvider(
             delay(if (snap.needsFastPolling()) LIVE_POLL_MS else IDLE_POLL_MS)
         }
     }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), null)
+
+    override suspend fun teams(): List<TeamRef> = fetchTeams(leaguePath)
 
     private fun LiveScoreSnapshot.needsFastPolling(): Boolean =
         matches.any {

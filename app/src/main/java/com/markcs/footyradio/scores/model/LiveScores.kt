@@ -22,6 +22,17 @@ data class TeamRef(
     val name: String,                     // full display name
     val shortName: String,                // abbreviation, falls back to name
     val logoUrl: String?,
+    val id: String = "",                  // provider's stable team id, used by the team filter
 )
 
 enum class MatchStatus { SCHEDULED, LIVE, PAUSED, FINISHED }
+
+/**
+ * Keeps only matches where at least one team is in [selectedTeamIds]. An empty selection
+ * means "all teams". Returns null when nothing is left, so the ticker is hidden.
+ */
+fun LiveScoreSnapshot.filterByTeams(selectedTeamIds: Set<String>): LiveScoreSnapshot? {
+    if (selectedTeamIds.isEmpty()) return this
+    val kept = matches.filter { it.home.id in selectedTeamIds || it.away.id in selectedTeamIds }
+    return if (kept.isEmpty()) null else copy(matches = kept)
+}
