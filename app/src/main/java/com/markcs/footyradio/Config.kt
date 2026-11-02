@@ -18,7 +18,7 @@ object Config {
     const val email = "contact@campbellsmith.me"
     const val feedbackURL = "https://github.com/markcs/Footy-Radio/issues"
     const val licenseURL = "https://github.com/markcs/Footy-Radio/blob/main/LICENSE"
-    const val shareText = "Check out Footy Radio!"
+    const val shareText = "Check out Sports Radio!"
 
     data class LibraryItem(val owner: String, val repo: String)
 
