@@ -4,7 +4,6 @@ import android.util.Log
 import com.markcs.footyradio.Config
 import com.markcs.footyradio.data.SquiggleGame
 import com.markcs.footyradio.data.SquiggleResponse
-import com.markcs.footyradio.scores.ScoreClock
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
