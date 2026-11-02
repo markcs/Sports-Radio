@@ -98,12 +98,15 @@ class EspnScoreboardTest {
     fun `estimated finish is capped at now so an early finish is not kept alive`() {
         // Started 2 hours before now. The estimated end is 1 hour in the future, so it is
         // capped at now: visible at once, hidden 15 minutes later.
-        val json = board(event("9", "post", "STATUS_FINAL", date = iso(START - 2 * HOUR)))
-        assertEquals(listOf("9"), json.snap(EspnClockStyle.PERIOD_AND_CLOCK, START).matches.map { it.id })
-        assertEquals(
-            emptyList<String>(),
-            json.snap(EspnClockStyle.PERIOD_AND_CLOCK, START + 16 * MINUTE).matches.map { it.id },
-        )
+        // One tracker across both polls, as the provider keeps one for its lifetime.
+        val tracker = FinishedGameTracker()
+        val scoreboard = board(event("9", "post", "STATUS_FINAL", date = iso(START - 2 * HOUR)))
+        fun at(nowMs: Long) = scoreboard
+            .toSnapshot("nba", EspnClockStyle.PERIOD_AND_CLOCK, tracker, DURATION_MS, nowMs)
+            .matches.map { it.id }
+
+        assertEquals(listOf("9"), at(START))
+        assertEquals(emptyList<String>(), at(START + 16 * MINUTE))
     }
 
     @Test

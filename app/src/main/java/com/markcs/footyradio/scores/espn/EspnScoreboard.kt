@@ -7,9 +7,8 @@ import com.markcs.footyradio.scores.model.TeamRef
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
-import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.TimeZone
+import java.time.OffsetDateTime
+import java.time.format.DateTimeParseException
 
 /*
  * DTOs for the ESPN public scoreboard (site.api.espn.com/apis/site/v2/sports/{league}/scoreboard).
@@ -125,23 +124,15 @@ internal class FinishedGameTracker {
 private fun EspnEvent.estimatedEndMs(typicalDurationMs: Long): Long? =
     parseEspnDateMs(date)?.let { it + typicalDurationMs }
 
-/** Parses ESPN's UTC timestamps, e.g. "2026-11-02T09:30Z". Minimum API 24 rules out java.time. */
+/** Parses ESPN's UTC timestamps, with or without seconds, e.g. "2026-11-02T09:30Z". */
 internal fun parseEspnDateMs(text: String?): Long? {
     if (text.isNullOrBlank()) return null
-    for (pattern in ESPN_DATE_PATTERNS) {
-        val parsed = try {
-            SimpleDateFormat(pattern, Locale.US)
-                .apply { timeZone = TimeZone.getTimeZone("UTC") }
-                .parse(text)
-        } catch (e: Exception) {
-            null
-        }
-        if (parsed != null) return parsed.time
+    return try {
+        OffsetDateTime.parse(text).toInstant().toEpochMilli()
+    } catch (e: DateTimeParseException) {
+        null
     }
-    return null
 }
-
-private val ESPN_DATE_PATTERNS = listOf("yyyy-MM-dd'T'HH:mm'Z'", "yyyy-MM-dd'T'HH:mm:ss'Z'")
 
 private fun EspnEvent.toMatch(style: EspnClockStyle): MatchScore? {
     val competitors = competitions.firstOrNull()?.competitors.orEmpty()

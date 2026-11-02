@@ -24,7 +24,7 @@ android {
 
     defaultConfig {
         applicationId = "com.markcs.footyradio"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
         versionCode = gitCommitCount()
         versionName = "1.0-${gitShortHash()}"
