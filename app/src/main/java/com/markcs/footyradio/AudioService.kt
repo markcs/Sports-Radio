@@ -43,6 +43,7 @@ import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import com.markcs.footyradio.data.RadioStation
 import com.markcs.footyradio.data.StationsRepository
+import com.markcs.footyradio.scores.format.LiveScoreMetadata
 import com.markcs.footyradio.scores.format.ScoreTickerFormatter
 import com.markcs.footyradio.data.LiveScoreState
 import com.google.common.collect.ImmutableList
@@ -877,6 +878,7 @@ class AudioService : MediaLibraryService() {
             val metaBuilder = MediaMetadata.Builder()
                 .setTitle(displayTitle)
                 .setArtist(displayArtist)
+                .apply { if (liveScore != null) setExtras(LiveScoreMetadata.overlayExtras()) }
 
             if (artworkChanged) {
                 // Artwork has changed — resolve and apply it
@@ -1693,6 +1695,7 @@ class AudioService : MediaLibraryService() {
             // Apply overrides if they are set in our custom metadata
             override.title?.let { builder.setTitle(it) }
             override.artist?.let { builder.setArtist(it) }
+            override.extras?.let { builder.setExtras(it) }
             
             // Special handling for artwork to ensure we don't leak base artwork 
             // when we have an override (crucial for Android Auto)

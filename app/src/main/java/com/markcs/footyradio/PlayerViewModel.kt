@@ -27,6 +27,7 @@ import com.markcs.footyradio.data.ArtworkService
 import com.markcs.footyradio.data.RadioStation
 import com.markcs.footyradio.data.StationsRepository
 import com.markcs.footyradio.scores.SportsScoreManager
+import com.markcs.footyradio.scores.format.LiveScoreMetadata
 import com.markcs.footyradio.scores.format.ScoreTickerFormatter
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.Job
@@ -505,10 +506,11 @@ class PlayerViewModel(
             metadata.subtitle?.toString().orEmpty().trim()
         )
 
-        // If the title matches the live score, it's the score injected for external controllers (like Android Auto).
+        // If the metadata is flagged as a score overlay, the title is the score injected for external
+        // controllers (like Android Auto).
         // On mobile, we already have the score in a separate UI field, so we use the artist field 
         // (which contains the song info) instead to avoid redundancy.
-        if (uiState.liveScore != null && newTitle.isNotBlank() && newTitle == uiState.liveScore) {
+        if (LiveScoreMetadata.isOverlay(metadata) && newTitle.isNotBlank()) {
             newTitle = newArtist
             newArtist = ""
         }
