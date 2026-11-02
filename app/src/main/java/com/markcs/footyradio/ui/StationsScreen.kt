@@ -83,7 +83,7 @@ fun StationsScreen(
     showMiniPlayer: Boolean,
     onStationClick: (RadioStation) -> Unit,
     onRefresh: () -> Unit = {},
-    onAboutClick: () -> Unit = {}
+    onSettingsClick: () -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
@@ -116,10 +116,10 @@ fun StationsScreen(
                             )
                         }
                     }
-                    IconButton(onClick = onAboutClick) {
+                    IconButton(onClick = onSettingsClick) {
                         Icon(
                             imageVector = Icons.Outlined.Settings,
-                            contentDescription = stringResource(R.string.cd_about)
+                            contentDescription = stringResource(R.string.cd_settings)
                         )
                     }
                 },

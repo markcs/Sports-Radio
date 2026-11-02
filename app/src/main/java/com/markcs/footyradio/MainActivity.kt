@@ -40,7 +40,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.markcs.footyradio.ui.AboutScreen
+import com.markcs.footyradio.ui.SettingsScreen
 import com.markcs.footyradio.ui.NowPlayingScreen
 import com.markcs.footyradio.ui.StationsScreen
 import com.markcs.footyradio.ui.components.MiniPlayer
@@ -96,7 +96,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             SwiftRadioTheme {
-                var showAbout by remember { mutableStateOf(false) }
+                var showSettings by remember { mutableStateOf(false) }
                 val scope = rememberCoroutineScope()
                 val bottomSheetState = rememberStandardBottomSheetState(
                     initialValue = SheetValue.Hidden,
@@ -110,19 +110,19 @@ class MainActivity : AppCompatActivity() {
                     // When sheet is collapsed, we might want to do something
                 }
 
-                // Back closes About, then collapses an expanded player, and only then
+                // Back closes Settings, then collapses an expanded player, and only then
                 // falls through to the system (which exits the app from the main screen).
-                BackHandler(enabled = showAbout) { showAbout = false }
+                BackHandler(enabled = showSettings) { showSettings = false }
                 BackHandler(
-                    enabled = !showAbout && bottomSheetState.currentValue == SheetValue.Expanded
+                    enabled = !showSettings && bottomSheetState.currentValue == SheetValue.Expanded
                 ) {
                     scope.launch { bottomSheetState.partialExpand() }
                 }
 
-                if (showAbout) {
-                    AboutScreen(
+                if (showSettings) {
+                    SettingsScreen(
                         viewModel = vm,
-                        onBack = { showAbout = false }
+                        onBack = { showSettings = false }
                     )
                 } else {
                     BottomSheetScaffold(
@@ -177,7 +177,7 @@ class MainActivity : AppCompatActivity() {
                                     }
                                 },
                                 onRefresh = { vm.refreshStations() },
-                                onAboutClick = { showAbout = true }
+                                onSettingsClick = { showSettings = true }
                             )
 
                             // Mini player overlay at the bottom
