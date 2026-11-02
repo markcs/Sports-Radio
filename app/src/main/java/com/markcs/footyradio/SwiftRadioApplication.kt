@@ -7,10 +7,13 @@ import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.markcs.footyradio.data.ArtworkService
 import com.markcs.footyradio.data.StationsRepository
+import android.content.pm.ApplicationInfo
 import com.markcs.footyradio.scores.SportsScoreManager
+import com.markcs.footyradio.scores.SportsScoreProvider
 import com.markcs.footyradio.scores.afl.SquiggleAflProvider
 import com.markcs.footyradio.scores.afl.SquiggleKtorApi
 import com.markcs.footyradio.scores.afl.SystemScoreClock
+import com.markcs.footyradio.scores.mock.MockScoreProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -62,16 +65,25 @@ class SwiftRadioApplication : Application(), SingletonImageLoader.Factory {
         ArtworkService(sharedOkHttpClient)
     }
 
+    /** Debug builds use synthetic scores so the UI can be tested out of season. */
+    private val isDebuggable: Boolean by lazy {
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    }
+
     val sportsScoreManager: SportsScoreManager by lazy {
-        val afl = SquiggleAflProvider(
-            api = SquiggleKtorApi(sharedOkHttpClient),
-            clock = SystemScoreClock,
-            shortNames = teamsRepository.teamsMap,
-            scope = applicationScope,
-        )
+        val provider: SportsScoreProvider = if (isDebuggable) {
+            MockScoreProvider(applicationScope)
+        } else {
+            SquiggleAflProvider(
+                api = SquiggleKtorApi(sharedOkHttpClient),
+                clock = SystemScoreClock,
+                shortNames = teamsRepository.teamsMap,
+                scope = applicationScope,
+            )
+        }
         SportsScoreManager(
-            providers = mapOf(afl.sportId to afl),
-            selectedSportId = MutableStateFlow(afl.sportId),
+            providers = mapOf(provider.sportId to provider),
+            selectedSportId = MutableStateFlow(provider.sportId),
             scope = applicationScope,
         )
     }
