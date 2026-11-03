@@ -316,6 +316,8 @@ class AudioService : MediaLibraryService() {
         }
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            // Paused or stopped: stop polling the score APIs. Resumes when playback restarts.
+            (application as SwiftRadioApplication).sportsScoreManager.setPlaybackActive(playWhenReady)
             if (playWhenReady) startStallRecovery() else cancelStallRecovery()
             if (com.markcs.footyradio.data.PlaybackRetryPolicy.shouldCancelRecoveryOnPlayWhenReady(playWhenReady, reason) &&
                 retryJob?.isActive == true

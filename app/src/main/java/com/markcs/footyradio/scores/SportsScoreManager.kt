@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -33,6 +34,7 @@ class SportsScoreManager(
     private val _selected = MutableStateFlow(loadSelection())
     private val _teamFilters = MutableStateFlow(loadTeamFilters())
     private val _windowMinutes = MutableStateFlow(loadWindowMinutes())
+    private val _playbackActive = MutableStateFlow(false)
     private val teamCache = HashMap<String, List<TeamRef>>()
 
     val selectedSportIds: StateFlow<Set<String>> = _selected.asStateFlow()
@@ -47,19 +49,25 @@ class SportsScoreManager(
 
     /**
      * Stage 1: the selected providers' matches, narrowed by each sport's team filter and
-     * merged. It re-subscribes only when sports or teams change, not every second.
+     * merged. While playback is paused or stopped nothing is subscribed, so the providers
+     * stop calling their APIs. The last snapshot stays on screen until playback resumes.
+     * It re-subscribes only when sports, teams or playback change, not every second.
      */
-    private val teamFilteredSnapshot: Flow<LiveScoreSnapshot?> = combine(_selected, _teamFilters) { ids, filters ->
-        ids to filters
+    private val teamFilteredSnapshot: Flow<LiveScoreSnapshot?> = combine(_selected, _teamFilters, _playbackActive) { ids, filters, playing ->
+        Triple(ids, filters, playing)
     }
-        .flatMapLatest { (ids, filters) ->
-            val flows = providers.filterKeys { it in ids }.map { (id, provider) ->
-                provider.snapshot.map { it?.filterByTeams(filters[id].orEmpty()) }
-            }
-            if (flows.isEmpty()) {
-                flowOf(null)
+        .flatMapLatest { (ids, filters, playing) ->
+            if (!playing) {
+                emptyFlow()
             } else {
-                combine(flows) { snaps -> merge(snaps.filterNotNull()) }
+                val flows = providers.filterKeys { it in ids }.map { (id, provider) ->
+                    provider.snapshot.map { it?.filterByTeams(filters[id].orEmpty()) }
+                }
+                if (flows.isEmpty()) {
+                    flowOf(null)
+                } else {
+                    combine(flows) { snaps -> merge(snaps.filterNotNull()) }
+                }
             }
         }
 
@@ -102,6 +110,14 @@ class SportsScoreManager(
         } else {
             _teamFilters.value + (sportId to cleaned)
         }
+    }
+
+    /**
+     * Called by the player. True while playback is playing or buffering, false when paused
+     * or stopped. Score polling only runs while this is true.
+     */
+    fun setPlaybackActive(active: Boolean) {
+        _playbackActive.value = active
     }
 
     /** How long before its start a scheduled game appears on the ticker. 0 means at start. */
